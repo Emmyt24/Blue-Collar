@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "test:a11y": "vitest run src/__tests__/accessibility",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "lint": "next lint",
@@ -59,7 +60,9 @@
     "typescript": "^5.4.0",
     "vitest": "^1.4.0",
     "@playwright/test": "^1.44.0",
-    "@axe-core/playwright": "^4.9.0"
+    "@axe-core/playwright": "^4.9.0",
+    "axe-core": "^4.9.0",
+    "@axe-core/react": "^4.9.0"
   },
   "license": "MIT"
 }
