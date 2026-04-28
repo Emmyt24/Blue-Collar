@@ -85,8 +85,7 @@
     "supertest": "^7.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.4.0"
-  }
+    "vitest": "^1.4.0",
     "@stryker-mutator/core": "^8.2.6",
     "@stryker-mutator/vitest-runner": "^8.2.6"
   }

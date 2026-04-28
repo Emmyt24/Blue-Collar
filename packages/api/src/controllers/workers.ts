@@ -3,6 +3,7 @@ import * as workerService from '../services/worker.service.js'
 import { handleError } from '../utils/handleError.js'
 import { db } from '../db.js'
 import { WorkerResource, WorkerCollection } from '../resources/index.js'
+import { workerSerializer } from '../serializers/index.js'
 import type { CreateWorkerBody, UpdateWorkerBody, WorkerQuery } from '../interfaces/index.js'
 import { invalidateCachePattern } from '../middleware/cache.js'
 
@@ -111,7 +112,7 @@ export async function createWorker(req: Request<{}, {}, CreateWorkerBody>, res: 
   try {
     const worker = await workerService.createWorker(req.body, req.user!.id)
     return res.status(201).json({
-      data: WorkerResource(worker as any),
+      data: workerSerializer.serialize(worker as any),
       status: 'success',
       code: 201
     })
@@ -133,7 +134,7 @@ export async function updateWorker(req: Request<{ id: string }, {}, UpdateWorker
     await invalidateCachePattern(`cache:*workers/${req.params.id}*`)
     await invalidateCachePattern(`cache:*workers?*`)
     return res.json({
-      data: WorkerResource(worker as any),
+      data: workerSerializer.serialize(worker as any),
       status: 'success',
       code: 200
     })
@@ -173,7 +174,7 @@ export async function toggleActivation(req: Request, res: Response) {
     await invalidateCachePattern(`cache:*workers/${req.params.id}*`)
     await invalidateCachePattern(`cache:*workers?*`)
     return res.json({
-      data: WorkerResource(updated as any),
+      data: workerSerializer.serialize(updated as any),
       status: 'success',
       code: 200
     })
