@@ -32,3 +32,8 @@ export const resetPasswordRules = {
 export const verifyAccountRules = {
   token: 'required|string',
 }
+
+// POST /auth/resend-verification
+export const resendVerificationRules = {
+  email: 'required|email',
+}

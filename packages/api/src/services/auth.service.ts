@@ -121,6 +121,25 @@ export async function verifyAccount(token: string): Promise<boolean> {
 }
 
 /**
+ * Resend a verification email to an unverified account.
+ * Silently returns if no account exists or if already verified (prevents enumeration).
+ */
+export async function resendVerificationEmail(email: string) {
+  const user = await db.user.findUnique({ where: { email } })
+  if (!user || user.verified) return
+
+  const { raw, hash, expiry } = generateVerificationToken(user.id)
+  await db.user.update({
+    where: { id: user.id },
+    data: { verificationToken: hash, verificationTokenExpiry: expiry },
+  })
+
+  sendVerificationEmail(email, user.firstName, raw).catch((err) =>
+    logger.error({ err }, 'Failed to resend verification email'),
+  )
+}
+
+/**
  * Initiate a password reset flow by sending a reset email.
  *
  * Silently returns if no account exists for the given email (prevents enumeration).

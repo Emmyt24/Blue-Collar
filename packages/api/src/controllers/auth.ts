@@ -199,6 +199,26 @@ export async function resetPassword(
 }
 
 /**
+ * POST /api/auth/resend-verification
+ * Resend the verification email. Always returns 200 to prevent enumeration.
+ */
+export async function resendVerification(
+  req: Request<{}, {}, { email: string }>,
+  res: Response,
+) {
+  try {
+    await authService.resendVerificationEmail(req.body.email)
+    return res.status(200).json({
+      status: 'success',
+      message: 'If your account exists and is unverified, a new verification email has been sent.',
+      code: 200,
+    })
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
+
+/**
  * GET /api/auth/unsubscribe-reminders?token=<jwt>
  * Opt a user out of verification reminder emails.
  */

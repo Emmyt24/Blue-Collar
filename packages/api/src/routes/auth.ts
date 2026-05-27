@@ -7,6 +7,7 @@ import {
   forgotPassword,
   resetPassword,
   verifyAccount,
+  resendVerification,
   googleAuthCallback,
   unsubscribeReminders,
 } from '../controllers/auth.js'
@@ -28,6 +29,7 @@ import {
   forgotPasswordRules,
   resetPasswordRules,
   verifyAccountRules,
+  resendVerificationRules,
 } from '../validations/index.js'
 
 const router = Router()
@@ -59,6 +61,7 @@ router.get('/me', authenticate, me)
 // Verifies the SHA-256 hash of the token against the stored hash, then marks
 // the account as verified and clears the token fields.
 router.put('/verify-account', validate(verifyAccountRules), verifyAccount)
+router.post('/resend-verification', validate(resendVerificationRules), resendVerification)
 
 // Unsubscribe from verification reminder emails via token in email link
 router.get('/unsubscribe-reminders', unsubscribeReminders)
