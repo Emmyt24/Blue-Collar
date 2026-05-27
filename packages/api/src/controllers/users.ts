@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import argon2 from 'argon2'
 import { db } from '../db.js'
 import { sanitizeUser } from '../models/user.model.js'
+import * as userService from '../services/user.service.js'
 
 // ── Profile update ────────────────────────────────────────────────────────────
 
@@ -28,6 +29,25 @@ export async function updateProfile(req: Request, res: Response) {
     })
     return res.json({ data: sanitizeUser(user), status: 'success', code: 200 })
   } catch (error) {
+    console.error('[updateProfile] error:', error)
+    return res.status(500).json({ status: 'error', message: 'Failed to update profile', code: 500 })
+  }
+}
+
+export async function updateMe(req: Request, res: Response) {
+  const userId = req.user?.id
+  if (!userId) return res.status(401).json({ status: 'error', message: 'Unauthorized', code: 401 })
+
+  try {
+    const user = await userService.updateProfile(userId, req.body)
+    return res.json({ data: user, status: 'success', code: 200 })
+  } catch (error: any) {
+    if (error?.name === 'ZodError') {
+      return res.status(400).json({ status: 'error', message: 'Validation failed', code: 400, errors: error.errors })
+    }
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ status: 'error', message: error.message, code: error.statusCode })
+    }
     console.error('[updateProfile] error:', error)
     return res.status(500).json({ status: 'error', message: 'Failed to update profile', code: 500 })
   }
