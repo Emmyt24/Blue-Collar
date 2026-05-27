@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { isConnected, getAddress, requestAccess } from "@stellar/freighter-api";
+import { toast } from "sonner";
 
 export function useWallet() {
   const [address, setAddress] = useState<string | null>(null);
@@ -12,7 +13,7 @@ export function useWallet() {
     try {
       const connected = await isConnected();
       if (!connected) {
-        alert("Freighter wallet not found. Please install the extension.");
+        toast.error("Freighter wallet not found. Please install the extension.");
         return;
       }
       await requestAccess();
