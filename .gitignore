@@ -18,6 +18,8 @@ coverage/
 
 # Build artifacts
 *.tsbuildinfo
+build/
+out/
 
 # Stryker mutation testing
 .stryker-tmp/
@@ -26,6 +28,9 @@ reports/
 # Pact contract testing
 pacts/
 .pact/
+
+# Rust build artifacts
+packages/contracts/target/
 
 # OS files
 Thumbs.db
@@ -38,3 +43,8 @@ Thumbs.db
 
 # npm lockfile (project uses pnpm)
 package-lock.json
+
+# Temporary files
+*.tmp
+*.bak
+.cache/

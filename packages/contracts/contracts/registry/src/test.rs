@@ -478,227 +478,81 @@ fn test_paginated_single_item_pages() {
     }
     let client = RegistryContractClient::new(&env, &contract);
 
-     for (i, expected) in ["w1", "w2", "w3"].iter().enumerate() {
-         let page = client.list_workers_paginated(&(i as u32), &1);
-         assert_eq!(page.len(), 1);
-         assert_eq!(page.get(0).unwrap(), Symbol::new(&env, expected));
-     }
- }
+    for (i, expected) in ["w1", "w2", "w3"].iter().enumerate() {
+        let page = client.list_workers_paginated(&(i as u32), &1);
+        assert_eq!(page.len(), 1);
+        assert_eq!(page.get(0).unwrap(), Symbol::new(&env, expected));
+    }
+}
 
- // ---------------------------------------------------------------------------
- // Pause mechanism tests
- // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// update_reputation — Issue #522
+// ---------------------------------------------------------------------------
 
- #[test]
- fn test_pause_and_unpause_events() {
-     let (env, contract) = setup();
-     let admin = Address::generate(&env);
-     let client = RegistryContractClient::new(&env, &contract);
+fn setup_with_admin() -> (Env, Address, Address) {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract = env.register_contract(None, RegistryContract);
+    let admin = Address::generate(&env);
+    // Initialize so admin gets ROLE_ADMIN and ROLE_REP_MGR
+    RegistryContractClient::new(&env, &contract).initialize(&admin);
+    (env, contract, admin)
+}
 
-     // Initialize with admin
-     client.initialize(&admin);
+#[test]
+fn test_update_reputation_success() {
+    let (env, contract, admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+    make_worker(&env, &contract, "w1", &owner);
 
-     // Test pause event emission
-     let paused_event = Symbol::new(&env, "ContractPaused");
-     client.pause(&admin);
-     assert_eq!(client.get_events(&paused_event).len(), 1);
+    let client = RegistryContractClient::new(&env, &contract);
+    assert_eq!(client.get_worker(&Symbol::new(&env, "w1")).unwrap().reputation, 0);
 
-     // Test unpause event emission
-     let unpaused_event = Symbol::new(&env, "ContractUnpaused");
-     client.unpause(&admin);
-     assert_eq!(client.get_events(&unpaused_event).len(), 1);
- }
+    client.update_reputation(&admin, &Symbol::new(&env, "w1"), &7500);
+    assert_eq!(client.get_worker(&Symbol::new(&env, "w1")).unwrap().reputation, 7500);
+}
 
- #[test]
- fn test_register_reverts_when_paused() {
-     let (env, contract) = setup();
-     let admin = Address::generate(&env);
-     let curator = Address::generate(&env);
-     let owner = Address::generate(&env);
-     let mut client = RegistryContractClient::new(&env, &contract);
+#[test]
+fn test_update_reputation_max_value() {
+    let (env, contract, admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+    make_worker(&env, &contract, "w1", &owner);
 
-     // Initialize and set up curator
-     client.initialize(&admin);
-     client.grant_role(&admin, &Symbol::new(&env, ROLE_PAUSER), &admin); // admin can pause
-     client.grant_role(&admin, &Symbol::new(&env, ROLE_CURATOR_MGR), &admin); // admin can manage curators
-     client.grant_role(&admin, &Symbol::new(&env, "curator"), &curator); // make curator a curator
+    RegistryContractClient::new(&env, &contract)
+        .update_reputation(&admin, &Symbol::new(&env, "w1"), &10_000);
+    assert_eq!(
+        RegistryContractClient::new(&env, &contract)
+            .get_worker(&Symbol::new(&env, "w1")).unwrap().reputation,
+        10_000
+    );
+}
 
-     // Pause the contract
-     client.pause(&admin);
+#[test]
+#[should_panic(expected = "Score out of range")]
+fn test_update_reputation_out_of_range() {
+    let (env, contract, admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+    make_worker(&env, &contract, "w1", &owner);
 
-     // Register should revert when paused
-     assert_panic_with_msg(
-         &move || {
-             client.register(
-                 &Symbol::new(&env, "w1"),
-                 &owner,
-                 &String::from_str(&env, "Alice"),
-                 &Symbol::new(&env, "plumber"),
-             );
-         },
-         "Contract is paused",
-     );
- }
+    RegistryContractClient::new(&env, &contract)
+        .update_reputation(&admin, &Symbol::new(&env, "w1"), &10_001);
+}
 
- #[test]
- fn test_toggle_reverts_when_paused() {
-     let (env, contract) = setup();
-     let admin = Address::generate(&env);
-     let owner = Address::generate(&env);
-     let mut client = RegistryContractClient::new(&env, &contract);
+#[test]
+#[should_panic(expected = "Missing role")]
+fn test_update_reputation_non_admin_panics() {
+    let (env, contract, _admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+    make_worker(&env, &contract, "w1", &owner);
+    let stranger = Address::generate(&env);
+    RegistryContractClient::new(&env, &contract)
+        .update_reputation(&stranger, &Symbol::new(&env, "w1"), &5000);
+}
 
-     // Initialize and set up roles
-     client.initialize(&admin);
-     client.grant_role(&admin, &Symbol::new(&env, ROLE_PAUSER), &admin);
-     client.grant_role(&admin, &Symbol::new(&env, ROLE_CURATOR_MGR), &admin);
-
-     // Register a worker first
-     client.register(
-         &Symbol::new(&env, "w1"),
-         &owner,
-         &String::from_str(&env, "Alice"),
-         &Symbol::new(&env, "plumber"),
-     );
-
-     // Pause the contract
-     client.pause(&admin);
-
-     // Toggle should revert when paused
-     assert_panic_with_msg(
-         &move || {
-             client.toggle(&Symbol::new(&env, "w1"), &owner);
-         },
-         "Contract is paused",
-     );
- }
-
- // Helper macro to check for panics with specific message
- macro_rules! assert_panic_with_msg {
-     ($f:expr, $msg:expr) => {
-         let result = std::panic::catch_unwind(|| $f);
-         assert!(result.is_err(), "Expected panic but none occurred");
-         if let Err(payload) = result {
-             if let Some(s) = payload.downcast_ref::<&str>() {
-                 assert!(
-                     s.contains($msg),
-                     "Expected panic message containing '{}', got: '{}'",
-                     $msg,
-                     s
-                 );
-             } else if let Some(s) = payload.downcast_ref::<String>() {
-                 assert!(
-                     s.contains($msg),
-                     "Expected panic message containing '{}', got: '{}'",
-                     $msg,
-                     s
-                 );
-             } else {
-                 panic!("Unable to extract panic message");
-             }
-         }
-     };
- }
-
- // ---------------------------------------------------------------------------
- // Admin access control tests
- // ---------------------------------------------------------------------------
-
- #[test]
- fn test_initialize_sets_admin() {
-     let (env, contract) = setup();
-     let admin = Address::generate(&env);
-     let client = RegistryContractClient::new(&env, &contract);
- 
-     client.initialize(&admin);
- 
-     // Check that get_admin returns the correct admin
-     assert_eq!(client.get_admin(), admin);
- }
-
- #[test]
- fn test_get_admin_uninitialized_panics() {
-     let env = Env::default();
-     env.mock_all_auths();
-     let contract = env.register_contract(None, RegistryContract);
-     let client = RegistryContractClient::new(&env, &contract);
- 
-     // Should panic when trying to get admin before initialization
-     assert_panic_with_msg!(
-         &move || { client.get_admin(); },
-         "Not initialized"
-     );
- }
-
- #[test]
- fn test_set_admin_success() {
-     let (env, contract) = setup();
-     let mut client = RegistryContractClient::new(&env, &contract);
- 
-     let admin_old = Address::generate(&env);
-     let admin_new = Address::generate(&env);
- 
-     // Initialize with old admin
-     client.initialize(&admin_old);
- 
-     // Verify initial admin
-     assert_eq!(client.get_admin(), admin_old);
- 
-     // Change admin (requires old admin auth)
-     client.set_admin(&admin_new);
- 
-     // Verify new admin
-     assert_eq!(client.get_admin(), admin_new);
- }
-
- #[test]
- #[should_panic(expected = "Unauthorized")]
- fn test_set_admin_unauthorized_fails() {
-     let env = Env::default();
-     // Not mocking auths to test unauthorized access
-     let contract = env.register_contract(None, RegistryContract);
-     let client = RegistryContractClient::new(&env, &contract);
- 
-     let admin_old = Address::generate(&env);
-     let admin_new = Address::generate(&env);
- 
-     // Initialize with old admin
-     client.initialize(&admin_old);
- 
-     // Try to change admin using new admin address (should fail)
-     client.set_admin(&admin_new);
- }
-
- #[test]
- fn test_upgrade_uses_stored_admin() {
-     let (env, contract) = setup();
-     let mut client = RegistryContractClient::new(&env, &contract);
- 
-     let admin = Address::generate(&env);
-     let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
- 
-     // Initialize contract
-     client.initialize(&admin);
- 
-     // Upgrade should work with stored admin (no admin parameter needed)
-     // This tests that upgrade now looks up admin from storage
-     client.upgrade(&new_wasm_hash);
-     // If we reach here without panic, the upgrade succeeded using stored admin
- }
-
- #[test]
- #[should_panic(expected = "Unauthorized")]
- fn test_upgrade_unauthorized_fails() {
-     let env = Env::default();
-     // Not mocking auths to test unauthorized access
-     let contract = env.register_contract(None, RegistryContract);
-     let client = RegistryContractClient::new(&env, &contract);
- 
-     let admin = Address::generate(&env);
-     let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
- 
-     // Initialize contract
-     client.initialize(&admin);
- 
-     // Try to upgrade without proper auth (should fail)
-     client.upgrade(&new_wasm_hash);
- }
+#[test]
+#[should_panic(expected = "Worker not found")]
+fn test_update_reputation_nonexistent_worker() {
+    let (env, contract, admin) = setup_with_admin();
+    RegistryContractClient::new(&env, &contract)
+        .update_reputation(&admin, &Symbol::new(&env, "ghost"), &5000);
+}

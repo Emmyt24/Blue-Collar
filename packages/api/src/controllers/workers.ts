@@ -6,6 +6,7 @@ import { WorkerResource, WorkerCollection } from '../resources/index.js'
 import { workerSerializer } from '../serializers/index.js'
 import type { CreateWorkerBody, UpdateWorkerBody, WorkerQuery } from '../interfaces/index.js'
 import { invalidateCachePattern } from '../middleware/cache.js'
+import { processImage, deleteImages } from '../utils/imageProcessor.js'
 
 // Haversine distance in km between two lat/lng points
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -172,7 +173,12 @@ export async function showWorker(req: Request, res: Response) {
  */
 export async function createWorker(req: Request<{}, {}, CreateWorkerBody>, res: Response) {
   try {
-    const worker = await workerService.createWorker(req.body, req.user!.id)
+    let imageFields: Record<string, string> = {}
+    if (req.file) {
+      const imgs = await processImage(req.file.path)
+      imageFields = { imageThumb: imgs.thumb, imageMedium: imgs.medium, imageFull: imgs.full, avatar: imgs.full }
+    }
+    const worker = await workerService.createWorker({ ...req.body, ...imageFields }, req.user!.id)
     await invalidateCachePattern(`cache:*workers?*`)
     return res.status(201).json({
       data: workerSerializer.serialize(worker as any),
@@ -193,7 +199,16 @@ export async function createWorker(req: Request<{}, {}, CreateWorkerBody>, res: 
  */
 export async function updateWorker(req: Request<{ id: string }, {}, UpdateWorkerBody>, res: Response) {
   try {
-    const worker = await workerService.updateWorker(req.params.id, req.body)
+    let imageFields: Record<string, string> = {}
+    if (req.file) {
+      // Delete old images before writing new ones
+      const existing = await db.worker.findUnique({ where: { id: req.params.id }, select: { imageFull: true } })
+      if (existing?.imageFull) deleteImages(existing.imageFull)
+
+      const imgs = await processImage(req.file.path)
+      imageFields = { imageThumb: imgs.thumb, imageMedium: imgs.medium, imageFull: imgs.full, avatar: imgs.full }
+    }
+    const worker = await workerService.updateWorker(req.params.id, { ...req.body, ...imageFields })
     await invalidateCachePattern(`cache:*workers/${req.params.id}*`)
     await invalidateCachePattern(`cache:*workers?*`)
     return res.json({
@@ -215,6 +230,8 @@ export async function updateWorker(req: Request<{ id: string }, {}, UpdateWorker
  */
 export async function deleteWorker(req: Request, res: Response) {
   try {
+    const existing = await db.worker.findUnique({ where: { id: req.params.id as string }, select: { imageFull: true } })
+    if (existing?.imageFull) deleteImages(existing.imageFull)
     await workerService.deleteWorker(req.params.id as string)
     await invalidateCachePattern(`cache:*workers/${req.params.id}*`)
     await invalidateCachePattern(`cache:*workers?*`)

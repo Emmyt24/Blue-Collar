@@ -665,6 +665,51 @@ fn get_role_members(env: &Env, role: &Symbol) -> Vec<Address> {
         env.storage().persistent().get(&DataKey::Escrow(id))
     }
 
+    /// Return the current contract configuration.
+    pub fn get_config(env: Env) -> Config {
+        env.storage()
+            .instance()
+            .get(&DataKey::Config)
+            .expect("Not initialized")
+    }
+
+    /// Cancel an escrow that has passed its expiry. Callable by anyone.
+    ///
+    /// Refunds the full amount to `from` with no fee.
+    ///
+    /// # Parameters
+    /// - `id`: The escrow identifier.
+    ///
+    /// # Panics
+    /// - `"Escrow not found"` if no escrow exists with the given `id`.
+    /// - `"Escrow not active"` if already released or cancelled.
+    /// - `"Escrow not yet expired"` if current timestamp < expiry.
+    ///
+    /// # Events
+    /// Emits `("EscExp", id, escrow.from)` with data `escrow.amount`.
+    pub fn cancel_expired_escrow(env: Env, id: Symbol) {
+        Self::require_not_paused(&env);
+        let mut escrow: Escrow = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(id.clone()))
+            .expect("Escrow not found");
+
+        assert!(!escrow.released && !escrow.cancelled, "Escrow not active");
+        assert!(env.ledger().timestamp() >= escrow.expiry, "Escrow not yet expired");
+
+        let client = token::Client::new(&env, &escrow.token);
+        client.transfer(&env.current_contract_address(), &escrow.from, &escrow.amount);
+
+        escrow.cancelled = true;
+        env.storage().persistent().set(&DataKey::Escrow(id.clone()), &escrow);
+
+        env.events().publish(
+            (symbol_short!("EscExp"), id, escrow.from),
+            escrow.amount,
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Multi-sig escrow (#337)
     // -------------------------------------------------------------------------

@@ -11,6 +11,7 @@ type WorkerWithRelations = Worker & {
 export type SerializedWorker = Omit<Worker, 'searchVector'> & {
   category?: SerializedCategory
   curator?: SerializedUser
+  images?: { thumb: string | null; medium: string | null; full: string | null }
 }
 
 export class WorkerSerializer extends BaseSerializer<WorkerWithRelations, SerializedWorker> {
@@ -18,6 +19,11 @@ export class WorkerSerializer extends BaseSerializer<WorkerWithRelations, Serial
     const { searchVector, category, curator, ...rest } = worker as any
     return {
       ...rest,
+      images: {
+        thumb:  rest.imageThumb  ?? null,
+        medium: rest.imageMedium ?? null,
+        full:   rest.imageFull   ?? null,
+      },
       ...(category ? { category: categorySerializer.serialize(category) } : {}),
       ...(curator  ? { curator:  userSerializer.serialize(curator) }       : {}),
     }
