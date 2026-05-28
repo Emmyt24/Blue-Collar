@@ -298,10 +298,11 @@ impl RegistryContract {
     /// Panics with `"Already initialized"` if called more than once.
     pub fn initialize(env: Env, admin: Address) {
         assert!(
-            !env.storage().instance().has(&DataKey::Admin),
+            !env.storage().persistent().has(&DataKey::Admin),
             "Already initialized"
         );
-        env.storage().instance().set(&DataKey::Admin, &admin);
+        // Store admin in persistent storage
+        env.storage().persistent().set(&DataKey::Admin, &admin);
         // Bootstrap: grant ROLE_ADMIN to the initial admin.
         let role = Symbol::new(&env, ROLE_ADMIN);
         let mut members: Vec<Address> = Vec::new(&env);
@@ -1020,7 +1021,7 @@ fn role_to_id(role: &Symbol) -> u64 {
         env.storage().instance().has(&DataKey::Admin)
     }
 
-    /// Get the admin address.
+     /// Get the admin address.
     ///
     /// # Panics
     /// Panics with `"Not initialized"` if [`initialize`] has not been called.
@@ -1029,6 +1030,35 @@ fn role_to_id(role: &Symbol) -> u64 {
             .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized")
+    }
+
+    /// Set a new admin address. Caller must be the current admin.
+    ///
+    /// # Parameters
+    /// - `new_admin`: The address that will become the new admin.
+    ///
+    /// # Panics
+    /// - `"Not initialized"` if [`initialize`] has not been called.
+    /// - `"Unauthorized"` if caller does not match the stored admin.
+    pub fn set_admin(env: Env, new_admin: Address) {
+        let current_admin = Self::get_admin(env);
+        current_admin.require_auth(); // Require auth from current admin
+        
+        // Update admin in instance storage
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        
+        // Update role membership: remove old admin from ADMIN role, add new admin
+        let admin_role = Self::role_symbol(&env, ROLE_ADMIN);
+        let mut members = Self::get_role_members(&env, &admin_role);
+        members.retain(|m| m != &current_admin); // Remove old admin
+        if !members.iter().any(|m| m == &new_admin) {
+            members.push_back(new_admin.clone()); // Add new admin if not already present
+        }
+        env.storage().persistent().set(&DataKey::RoleMembers(role_to_id(&admin_role)), &members);
+        
+        // Emit events for role changes if needed (optional, but good practice)
+        // Note: We're not emitting role grant/revoke events here to keep it simple
+        // but we could emit custom events for admin change if desired
     }
 
     // -------------------------------------------------------------------------
@@ -1837,12 +1867,14 @@ fn role_to_id(role: &Symbol) -> u64 {
     /// Upgrade the contract WASM in-place, preserving the contract ID and all storage.
     ///
     /// # Parameters
-    /// - `admin`: Must be the contract admin; `require_auth()` is enforced.
     /// - `new_wasm_hash`: The hash returned by `stellar contract install` for the new WASM.
     ///
     /// # Panics
-    /// Panics with `"Admin only"` if `admin` is not the stored admin.
-    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
+    /// - `"Not initialized"` if [`initialize`] has not been called.
+    /// - `"Unauthorized"` if caller does not match the stored admin.
+    pub fn upgrade(env: Env, new_wasm_hash: soroban_sdk::BytesN<32>) {
+        let admin = Self::get_admin(env);
+        admin.require_auth();
         let upgrader_role = Self::role_symbol(&env, ROLE_UPGRADER_CACHED);
         Self::require_role(&env, &upgrader_role, &admin);
         env.deployer().update_current_contract_wasm(new_wasm_hash);
