@@ -13,7 +13,7 @@ FEE_BPS       ?= 0
 
 WASM_DIR := target/wasm32-unknown-unknown/release
 
-.PHONY: build build-registry build-market \
+.PHONY: build build-registry build-market coverage \
         deploy-testnet deploy-mainnet \
         deploy-registry-testnet deploy-market-testnet \
         deploy-registry-mainnet deploy-market-mainnet \
@@ -30,6 +30,11 @@ build-registry:
 
 build-market:
 	cargo build --release --target wasm32-unknown-unknown --package bluecollar-market
+
+coverage:
+	rustup component add llvm-tools-preview
+	cargo install --locked cargo-llvm-cov
+	cargo llvm-cov --workspace --lcov --output-path target/coverage/lcov.info --fail-under-lines 80
 
 # ---------------------------------------------------------------------------
 # Deploy — testnet

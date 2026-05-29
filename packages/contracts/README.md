@@ -40,6 +40,20 @@ make build-market
 
 WASM outputs land in `target/wasm32-unknown-unknown/release/`.
 
+## Coverage
+
+[![Contracts Coverage](https://github.com/Blue-Kollar/Blue-Collar/actions/workflows/enhanced-ci-cd.yml/badge.svg?branch=main)](https://github.com/Blue-Kollar/Blue-Collar/actions/workflows/enhanced-ci-cd.yml)
+
+Run contract coverage locally from `packages/contracts`:
+
+```bash
+rustup component add llvm-tools-preview
+cargo install --locked cargo-llvm-cov
+cargo llvm-cov --workspace --lcov --output-path target/coverage/lcov.info --fail-under-lines 80
+```
+
+The CI job uploads the generated coverage report as an artifact from `packages/contracts/target/coverage`.
+
 ---
 
 ## Deploy
