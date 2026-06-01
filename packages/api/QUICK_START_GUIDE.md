@@ -99,3 +99,9 @@ pnpm admin:create --email admin@example.com --password secret123 --firstName Jan
 **Port 3000 already in use**
 - Set a different port in `.env`: `PORT=3001`
 - Or kill the process using the port: `lsof -ti:3000 | xargs kill`
+
+---
+
+## CI Status
+
+![API Tests](https://github.com/Fidelis900/Blue-Collar/actions/workflows/api-tests.yml/badge.svg)

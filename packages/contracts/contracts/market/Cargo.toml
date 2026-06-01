@@ -2,12 +2,14 @@
 name = "bluecollar-market"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = { version = "21.0.0", features = ["alloc"] }
+bluecollar-types = { path = "../types" }
 
 [dev-dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }

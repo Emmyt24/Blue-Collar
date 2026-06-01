@@ -1,69 +1,178 @@
 # BlueCollar Contracts
 
-Soroban smart contracts for the BlueCollar platform, deployed on Stellar.
+Stellar **Soroban** smart contracts for the BlueCollar protocol, written in Rust.
 
-## Contracts
-
-### Registry (`contracts/registry`)
-Manages on-chain worker registrations.
-
-| Function | Description |
+| Contract | Description |
 |---|---|
-| `register(id, owner, name, category)` | Register a new worker (owner auth required) |
-| `get_worker(id)` | Fetch a worker by id, returns `Option<Worker>` |
-| `toggle(id, caller)` | Flip a worker's `is_active` flag (owner only) |
-| `list_workers()` | Return all registered worker ids |
+| `registry` | On-chain worker registrations, curator management, staking, badges |
+| `market` | Token tips, escrow payments, arbitration, protocol fee |
 
-### Market (`contracts/market`)
-Handles tips and payment escrow between users and workers.
+---
 
-| Function | Description |
-|---|---|
-| `initialize(admin, fee_bps, fee_recipient)` | One-time setup; sets protocol fee (max 500 bps / 5%) |
-| `tip(from, to, token, amount)` | Send a tip; deducts protocol fee and forwards remainder to worker |
-| `update_fee(admin, new_fee_bps)` | Update fee in basis points (admin only, max 500) |
-| `create_escrow(id, from, to, token, amount, expiry)` | Lock tokens in escrow until released or expired |
-| `release_escrow(id, caller)` | Release funds to worker, deducting protocol fee (sender only) |
-| `cancel_escrow(id, caller)` | Refund sender before expiry (sender only) |
-| `cancel_expired_escrow(id)` | Refund sender after expiry (permissionless) |
-| `get_config()` | Read current fee config |
-| `get_escrow(id)` | Read escrow state |
-
-## Makefile
-
-All common operations are available via `make` from `packages/contracts/`.
-
-```
-make build          # cargo build --release --target wasm32-unknown-unknown
-make test           # cargo test
-make fmt            # cargo fmt
-make clippy         # cargo clippy -- -D warnings
-make deploy-testnet # deploy both contracts to Stellar testnet (requires STELLAR_ACCOUNT)
-make clean          # cargo clean
-```
-
-### deploy-testnet
-
-Set a funded testnet identity before deploying:
+## Prerequisites
 
 ```bash
-stellar keys generate --global alice --network testnet --fund
-export STELLAR_ACCOUNT=alice
-make deploy-testnet
-```
-
-## Development
-
-```bash
-# Install Rust WASM target
+# Rust + wasm target
 rustup target add wasm32-unknown-unknown
 
-# Install Stellar CLI
-cargo install --locked stellar-cli --features opt
+# Stellar CLI
+cargo install --locked stellar-cli
 
-# Run tests
-make test
-
-# Build WASM artifacts
-make build
+# Fund a testnet account (one-time)
+stellar keys generate --global deployer
+stellar keys fund deployer --network testnet
 ```
+
+---
+
+## Build
+
+```bash
+cd packages/contracts
+
+# Build both contracts
+make build
+
+# Or individually
+make build-registry
+make build-market
+```
+
+WASM outputs land in `target/wasm32-unknown-unknown/release/`.
+
+## Coverage
+
+[![Contracts Coverage](https://github.com/Blue-Kollar/Blue-Collar/actions/workflows/enhanced-ci-cd.yml/badge.svg?branch=main)](https://github.com/Blue-Kollar/Blue-Collar/actions/workflows/enhanced-ci-cd.yml)
+
+Run contract coverage locally from `packages/contracts`:
+
+```bash
+rustup component add llvm-tools-preview
+cargo install --locked cargo-llvm-cov
+cargo llvm-cov --workspace --lcov --output-path target/coverage/lcov.info --fail-under-lines 80
+```
+
+The CI job uploads the generated coverage report as an artifact from `packages/contracts/target/coverage`.
+
+---
+
+## Deploy
+
+### Testnet (quick start)
+
+```bash
+make deploy-testnet \
+  SOURCE=deployer \
+  ADMIN=<your-stellar-address> \
+  FEE_RECIPIENT=<treasury-address> \
+  FEE_BPS=100
+```
+
+This runs `deploy-registry.sh` then `deploy-market.sh` and writes both contract IDs
+to `deployments.json`.
+
+### Mainnet
+
+```bash
+make deploy-mainnet \
+  SOURCE=<mainnet-key-alias> \
+  ADMIN=<admin-address> \
+  FEE_RECIPIENT=<treasury-address> \
+  FEE_BPS=100
+```
+
+### Manual (per-contract)
+
+```bash
+# Registry
+./scripts/deploy-registry.sh \
+  --network testnet \
+  --source deployer \
+  --admin <admin-address>
+
+# Market
+./scripts/deploy-market.sh \
+  --network testnet \
+  --source deployer \
+  --admin <admin-address> \
+  --fee-bps 100 \
+  --fee-recipient <treasury-address>
+```
+
+### deployments.json
+
+After each deploy the contract IDs are stored in `deployments.json`:
+
+```json
+{
+  "testnet": {
+    "registry": {
+      "contract_id": "C...",
+      "admin": "G...",
+      "deployed_at": "2026-01-01T00:00:00Z"
+    },
+    "market": {
+      "contract_id": "C...",
+      "admin": "G...",
+      "fee_bps": 100,
+      "fee_recipient": "G...",
+      "deployed_at": "2026-01-01T00:00:00Z"
+    }
+  }
+}
+```
+
+---
+
+## Upgrading a Contract
+
+Upgrades preserve the contract ID and all storage.
+
+```bash
+# 1. Install new WASM, get its hash
+stellar contract install \
+  --wasm target/wasm32-unknown-unknown/release/bluecollar_registry.wasm \
+  --source <admin-key> \
+  --network testnet
+# → <new_wasm_hash>
+
+# 2. Invoke upgrade
+stellar contract invoke \
+  --id <contract-id> \
+  --source <admin-key> \
+  --network testnet \
+  -- upgrade \
+  --new_wasm_hash <new_wasm_hash>
+
+# 3. If the storage schema changed, run migrate
+stellar contract invoke \
+  --id <contract-id> \
+  --source <admin-key> \
+  --network testnet \
+  -- migrate \
+  --admin <admin-address> \
+  --expected_version <N>
+```
+
+See [SECURITY.md](./SECURITY.md#8-migration-pattern) for the full migration pattern.
+
+---
+
+## Storage TTL
+
+Soroban persistent entries expire after a TTL measured in ledgers.
+
+| Constant | Value | Approx. duration |
+|---|---|---|
+| `TTL_EXTEND_TO` | 535,000 ledgers | ~1 year |
+| `TTL_THRESHOLD` | 267,500 ledgers | ~6 months |
+
+Every write automatically extends the TTL. A public `extend_worker_ttl(id)` function
+lets anyone refresh a worker entry without special permissions.
+
+---
+
+## Security
+
+See [SECURITY.md](./SECURITY.md) for the full threat model, auth table, overflow
+analysis, and migration pattern.

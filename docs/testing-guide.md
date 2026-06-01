@@ -1,0 +1,525 @@
+# Testing Guide
+
+This guide covers testing approaches across all parts of the BlueCollar codebase: the API, Soroban smart contracts, the Next.js frontend, and the CI/CD pipeline.
+
+## API Unit Testing
+
+The API uses [Vitest](https://vitest.dev) in a Node.js environment. Tests live in `packages/api/src/__tests__/`.
+
+### Configuration
+
+`packages/api/vitest.config.ts`:
+
+```typescript
+export default defineConfig({
+  test: {
+    environment: 'node',
+    setupFiles: ['./testSetup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      thresholds: { lines: 80, functions: 80, branches: 70 },
+    },
+    include: ['src/__tests__/**/*.test.ts'],
+  },
+})
+```
+
+### Running Tests
+
+```bash
+cd packages/api
+
+# Run all tests once
+pnpm test --run
+
+# Run with coverage
+pnpm test:coverage
+
+# Run a specific file
+pnpm test --run src/__tests__/auth.test.ts
+```
+
+### Test Setup (`testSetup.ts`)
+
+`packages/api/testSetup.ts` runs before every test suite. It:
+
+- Loads `.env` via `dotenv`
+- Runs `prisma migrate deploy` to ensure the test DB schema is current
+- Cleans all tables after each test in FK-safe order
+- Disconnects Prisma after all tests
+
+```typescript
+beforeAll(async () => {
+  execSync('pnpm exec prisma migrate deploy', { stdio: 'inherit' })
+})
+
+afterEach(async () => {
+  await db.$transaction([
+    db.worker.deleteMany(),
+    db.user.deleteMany(),
+    db.category.deleteMany(),
+    db.location.deleteMany(),
+  ])
+})
+```
+
+Set `TEST_DATABASE_URL` in your `.env` to point to a dedicated test database:
+
+```env
+TEST_DATABASE_URL=postgresql://localhost:5432/bluecollar_test
+```
+
+### Unit Test Patterns
+
+Unit tests mock all external dependencies (database, mailer, services) and test controllers and middleware in isolation.
+
+**Mocking pattern:**
+
+```typescript
+// Mock before imports
+vi.mock('../services/auth.service.js', () => ({
+  registerUser: vi.fn(),
+  loginUser: vi.fn(),
+}))
+
+vi.mock('../mailer/transport.js', () => ({
+  transporter: {
+    sendMail: vi.fn().mockResolvedValue({ messageId: 'mock-id' }),
+  },
+}))
+
+// Import after mocks
+import * as authService from '../services/auth.service.js'
+import { register } from '../controllers/auth.js'
+```
+
+**Request/Response helpers:**
+
+```typescript
+function makeRes() {
+  const res: any = {}
+  res.status = vi.fn().mockReturnValue(res)
+  res.json = vi.fn().mockReturnValue(res)
+  return res
+}
+
+function makeReq(body = {}, user?: any): any {
+  return { body, user }
+}
+```
+
+**Asserting responses:**
+
+```typescript
+it('returns 201 on successful registration', async () => {
+  (authService.registerUser as any).mockResolvedValue(mockUser)
+  const req = makeReq({ email: 'alice@example.com', password: 'secret' })
+  const res = makeRes()
+
+  await register(req, res)
+
+  expect(res.status).toHaveBeenCalledWith(201)
+  expect(res.json).toHaveBeenCalledWith(
+    expect.objectContaining({ status: 'success', code: 201 })
+  )
+})
+```
+
+**Testing middleware:**
+
+```typescript
+import { authenticate, authorize } from '../middleware/auth.js'
+import jwt from 'jsonwebtoken'
+
+it('returns 401 for missing Authorization header', () => {
+  const req = makeReq({ headers: {} })
+  const res = makeRes()
+  const next = vi.fn()
+
+  authenticate(req, res, next)
+
+  expect(res.status).toHaveBeenCalledWith(401)
+  expect(next).not.toHaveBeenCalled()
+})
+
+it('calls next() for a valid JWT', () => {
+  const token = jwt.sign({ id: 'user-1', role: 'curator' }, 'test-secret')
+  const req = makeReq({ headers: { authorization: `Bearer ${token}` } })
+  const res = makeRes()
+  const next = vi.fn()
+
+  authenticate(req, res, next)
+
+  expect(next).toHaveBeenCalledOnce()
+  expect(req.user).toMatchObject({ id: 'user-1', role: 'curator' })
+})
+```
+
+## Contract Testing with Soroban SDK
+
+Smart contracts in `packages/contracts/` are written in Rust and tested using the [Soroban SDK test utilities](https://docs.rs/soroban-sdk/latest/soroban_sdk/testutils/index.html). No external network is required — tests run against an in-memory Soroban environment.
+
+### Running Contract Tests
+
+```bash
+cd packages/contracts
+
+# Run all contract tests
+cargo test
+
+# Run tests for a specific contract
+cargo test -p market
+
+# Run with output (useful for debugging)
+cargo test -- --nocapture
+```
+
+### Test Environment Setup
+
+The `TestEnv` struct pattern provides a reusable test harness:
+
+```rust
+struct TestEnv {
+    env: Env,
+    contract_id: Address,
+    payer: Address,
+    worker: Address,
+    token_addr: Address,
+}
+
+impl TestEnv {
+    fn new() -> Self {
+        let env = Env::default();
+        env.mock_all_auths();  // Skip auth checks in tests
+
+        let admin = Address::generate(&env);
+        let payer = Address::generate(&env);
+        let worker = Address::generate(&env);
+
+        // Register a mock Stellar asset and mint tokens to payer
+        let token_id = env.register_stellar_asset_contract_v2(admin.clone());
+        let token_addr = token_id.address();
+        StellarAssetClient::new(&env, &token_addr).mint(&payer, &1_000_000);
+
+        // Deploy the contract under test
+        let contract_id = env.register_contract(None, MarketContract);
+
+        TestEnv { env, contract_id, payer, worker, token_addr }
+    }
+
+    fn client(&self) -> MarketContractClient {
+        MarketContractClient::new(&self.env, &self.contract_id)
+    }
+
+    fn token_balance(&self, addr: &Address) -> i128 {
+        TokenClient::new(&self.env, &self.token_addr).balance(addr)
+    }
+}
+```
+
+### Writing Contract Tests
+
+```rust
+#[test]
+fn test_tip_transfers_tokens() {
+    let t = TestEnv::new();
+    // Initialize the contract first
+    t.client().initialize(&admin, &0, &fee_recipient);
+    // Call the function under test
+    t.client().tip(&t.payer, &t.worker, &t.token_addr, &500_000);
+    // Assert token balances
+    assert_eq!(t.token_balance(&t.worker), 500_000);
+    assert_eq!(t.token_balance(&t.payer), 500_000);
+}
+```
+
+**Testing panics (expected failures):**
+
+```rust
+#[test]
+#[should_panic(expected = "Escrow id already exists")]
+fn test_duplicate_escrow_panics() {
+    let t = TestEnv::new();
+    let id = Symbol::new(&t.env, "escrow1");
+    t.client().create_escrow(&id, &t.payer, &t.worker, &t.token_addr, &100_000, &9999);
+    t.client().create_escrow(&id, &t.payer, &t.worker, &t.token_addr, &100_000, &9999);
+}
+```
+
+**Manipulating ledger time for expiry tests:**
+
+```rust
+fn set_time(&self, ts: u64) {
+    self.env.ledger().set(LedgerInfo {
+        timestamp: ts,
+        protocol_version: 22,
+        sequence_number: 1,
+        network_id: Default::default(),
+        base_reserve: 10,
+        min_temp_entry_ttl: 1,
+        min_persistent_entry_ttl: 1,
+        max_entry_ttl: 100_000,
+    });
+}
+
+#[test]
+fn test_cancel_after_expiry() {
+    let t = TestEnv::new();
+    t.set_time(1000);
+    t.client().create_escrow(&id, &t.payer, &t.worker, &t.token_addr, &300_000, &2000);
+    t.set_time(3000);  // advance past expiry
+    t.client().cancel_escrow(&id, &t.payer);
+    assert_eq!(t.token_balance(&t.payer), 1_000_000);  // full refund
+}
+```
+
+## E2E Testing for the Frontend
+
+The API includes E2E tests in `packages/api/src/__tests__/e2e/` that use [Supertest](https://github.com/ladjs/supertest) to make real HTTP requests against the Express app with a live test database.
+
+### Running E2E Tests
+
+E2E tests require a running PostgreSQL database. Set `TEST_DATABASE_URL` in your environment:
+
+```bash
+cd packages/api
+TEST_DATABASE_URL=postgresql://localhost:5432/bluecollar_test pnpm test --run src/__tests__/e2e/
+```
+
+### E2E Test Pattern
+
+```typescript
+import request from 'supertest'
+import app from '../../app.js'
+
+// Mock external services that shouldn't run in tests
+vi.mock('../../mailer/transport.js', () => ({
+  transporter: { sendMail: vi.fn().mockResolvedValue({ messageId: 'mock' }) },
+}))
+
+describe('POST /api/auth/register', () => {
+  it('creates a new account and returns 201', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'user@example.com', password: 'Password123!', firstName: 'Alice', lastName: 'Smith' })
+
+    expect(res.status).toBe(201)
+    expect(res.body.status).toBe('success')
+    expect(res.body.data.email).toBe('user@example.com')
+  })
+})
+```
+
+**Authenticated requests:**
+
+```typescript
+let authToken: string
+
+// Obtain a token in a beforeAll or earlier test
+authToken = (await request(app).post('/api/auth/login').send(credentials)).body.token
+
+// Use it in subsequent requests
+const res = await request(app)
+  .get('/api/auth/me')
+  .set('Authorization', `Bearer ${authToken}`)
+```
+
+### Frontend Component Testing
+
+The Next.js app uses Vitest + React Testing Library in `packages/app/src/__tests__/`.
+
+**Configuration** (`packages/app/vitest.config.ts`):
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/__tests__/setup.ts'],
+  },
+  resolve: {
+    alias: { '@': path.resolve(__dirname, './src') },
+  },
+})
+```
+
+**Running frontend tests:**
+
+```bash
+cd packages/app
+pnpm test --run
+```
+
+**Component test pattern:**
+
+```typescript
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, it, expect, vi } from 'vitest'
+import TipModal from '@/components/TipModal'
+
+// Mock external dependencies
+vi.mock('@stellar/freighter-api', () => ({
+  isConnected: vi.fn(),
+  requestAccess: vi.fn(),
+  getAddress: vi.fn(),
+  signTransaction: vi.fn(),
+}))
+
+describe('TipModal', () => {
+  it('opens modal when trigger is clicked', async () => {
+    const user = userEvent.setup()
+    render(<TipModal workerName="Alice" walletAddress="GABC..." />)
+
+    await user.click(screen.getByRole('button', { name: /send tip/i }))
+
+    expect(await screen.findByText('Send a Tip')).toBeInTheDocument()
+  })
+
+  it('disables submit when amount is empty', async () => {
+    const user = userEvent.setup()
+    render(<TipModal workerName="Alice" walletAddress="GABC..." />)
+    await user.click(screen.getByRole('button', { name: /send tip/i }))
+
+    expect(screen.getByRole('button', { name: /^send tip$/i })).toBeDisabled()
+  })
+})
+```
+
+## Test Data Factories
+
+Factories in `packages/api/src/__tests__/factories/` use [@faker-js/faker](https://fakerjs.dev) to generate realistic test data with sensible defaults that can be overridden.
+
+### Available Factories
+
+**userFactory**
+
+```typescript
+import { userFactory } from './factories/user.factory'
+
+const user = userFactory()
+// { id: uuid, email: 'alice@example.com', firstName: 'Alice', role: 'user', ... }
+
+const admin = userFactory({ role: 'admin', email: 'admin@example.com' })
+```
+
+**workerFactory**
+
+```typescript
+import { workerFactory } from './factories/worker.factory'
+
+const worker = workerFactory()
+// { id: uuid, name: 'John Smith', isActive: true, isVerified: false, ... }
+
+const verifiedWorker = workerFactory({ isVerified: true, walletAddress: 'GABC...' })
+```
+
+**categoryFactory**
+
+```typescript
+import { categoryFactory } from './factories/category.factory'
+
+const category = categoryFactory()
+// { id: uuid, name: 'Electronics', description: '...', ... }
+
+const plumbing = categoryFactory({ name: 'Plumbing' })
+```
+
+### Creating a New Factory
+
+```typescript
+// packages/api/src/__tests__/factories/review.factory.ts
+import { faker } from '@faker-js/faker'
+import type { Review } from '../types'
+
+export const reviewFactory = (overrides: Partial<Review> = {}): Review => ({
+  id: faker.string.uuid(),
+  rating: faker.number.int({ min: 1, max: 5 }),
+  comment: faker.lorem.sentence(),
+  workerId: faker.string.uuid(),
+  userId: faker.string.uuid(),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+})
+```
+
+### Using Factories in E2E Tests
+
+In E2E tests, factories generate the data shape but you still need to persist it to the database:
+
+```typescript
+import { userFactory } from '../factories/user.factory'
+import { db } from '../../db.js'
+
+const userData = userFactory({ role: 'curator' })
+await db.user.create({ data: userData })
+```
+
+## CI/CD Testing Pipeline
+
+Tests run automatically on every push and pull request via GitHub Actions (`.github/workflows/`).
+
+### Pipeline Stages
+
+```
+Push / PR
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  1. Lint & Type Check                   │
+│     pnpm lint                           │
+│     pnpm tsc --noEmit                   │
+└─────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  2. API Unit Tests                      │
+│     cd packages/api                     │
+│     pnpm test:coverage                  │
+│     (requires TEST_DATABASE_URL secret) │
+└─────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  3. Frontend Tests                      │
+│     cd packages/app                     │
+│     pnpm test --run                     │
+└─────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│  4. Contract Tests                      │
+│     cd packages/contracts               │
+│     cargo test                          │
+└─────────────────────────────────────────┘
+```
+
+### Required Secrets
+
+Set these in your GitHub repository settings under **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|---|---|
+| `TEST_DATABASE_URL` | PostgreSQL connection string for the test database |
+| `JWT_SECRET` | Secret used to sign JWTs in tests |
+| `APP_URL` | Base URL used in email templates during tests |
+
+### Coverage Thresholds
+
+The API enforces minimum coverage thresholds in `vitest.config.ts`. The CI build fails if coverage drops below:
+
+- Lines: 80%
+- Functions: 80%
+- Branches: 70%
+
+Run coverage locally before pushing:
+
+```bash
+cd packages/api
+pnpm test:coverage
+```
+
+The HTML report is generated at `packages/api/coverage/index.html`.

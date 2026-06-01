@@ -3,6 +3,13 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/context/AuthContext";
 import { WalletProvider } from "@/context/WalletContext";
+import { OnboardingProvider } from "@/context/OnboardingContext";
+import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
+import PushNotificationPrompt from "@/components/PushNotificationPrompt";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import WebVitalsReporter from "@/components/WebVitalsReporter";
+import OfflineBanner from "@/components/OfflineBanner";
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://bluecollar.app";
 
@@ -15,6 +22,13 @@ export const metadata: Metadata = {
   description:
     "Connect with trusted local tradespeople on a decentralised Stellar-powered platform.",
   keywords: ["skilled workers", "tradespeople", "Stellar", "blockchain", "local services"],
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+  },
+  manifest: "/manifest.json",
   openGraph: {
     type: "website",
     siteName: "BlueCollar",
@@ -36,11 +50,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
-        <AuthProvider>
-          <WalletProvider>{children}</WalletProvider>
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="bc_theme">
+          <AuthProvider>
+            <WalletProvider>
+              <OnboardingProvider>
+                <OfflineBanner />
+                <ServiceWorkerRegister />
+                <WebVitalsReporter />
+                {children}
+                <PushNotificationPrompt />
+              </OnboardingProvider>
+            </WalletProvider>
+          </AuthProvider>
+          <Toaster position="bottom-right" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   );
