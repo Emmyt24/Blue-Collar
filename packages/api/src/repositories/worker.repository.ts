@@ -1,6 +1,7 @@
 import type { Worker, Prisma } from '@prisma/client'
 import type { IRepository } from './base.repository.js'
 import { db } from '../db.js'
+import { QueryBuilder } from './queryBuilder.js'
 
 // ── Interface ─────────────────────────────────────────────────────────────────
 
@@ -26,34 +27,39 @@ export class WorkerRepository implements IWorkerRepository {
   }
 
   async findAll(opts: { skip?: number; take?: number } = {}): Promise<Worker[]> {
-    return db.worker.findMany({ skip: opts.skip, take: opts.take, orderBy: { createdAt: 'desc' } })
+    const query = QueryBuilder.pagination(opts)
+    return db.worker.findMany({ ...query, orderBy: QueryBuilder.defaultSort() })
   }
 
   async findActive(opts: { skip?: number; take?: number } = {}): Promise<Worker[]> {
+    const query = QueryBuilder.buildQuery({
+      pagination: opts,
+      filter: { isActive: true },
+    })
     return db.worker.findMany({
-      where: { isActive: true },
-      skip: opts.skip,
-      take: opts.take,
+      ...query,
       include: workerInclude,
-      orderBy: { createdAt: 'desc' },
     })
   }
 
   async findByCurator(curatorId: string): Promise<Worker[]> {
+    const query = QueryBuilder.buildQuery({
+      filter: { curatorId },
+    })
     return db.worker.findMany({
-      where: { curatorId },
+      ...query,
       include: workerInclude,
-      orderBy: { createdAt: 'desc' },
     })
   }
 
   async findByCategory(categoryId: string, opts: { skip?: number; take?: number } = {}): Promise<Worker[]> {
+    const query = QueryBuilder.buildQuery({
+      pagination: opts,
+      filter: { categoryId, isActive: true },
+    })
     return db.worker.findMany({
-      where: { categoryId, isActive: true },
-      skip: opts.skip,
-      take: opts.take,
+      ...query,
       include: workerInclude,
-      orderBy: { createdAt: 'desc' },
     })
   }
 

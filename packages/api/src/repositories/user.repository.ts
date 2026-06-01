@@ -1,6 +1,7 @@
 import type { User, Prisma } from '@prisma/client'
 import type { IRepository } from './base.repository.js'
 import { db } from '../db.js'
+import { QueryBuilder } from './queryBuilder.js'
 
 // ── Interface ─────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,8 @@ export class UserRepository implements IUserRepository {
   }
 
   async findAll(opts: { skip?: number; take?: number } = {}): Promise<User[]> {
-    return db.user.findMany({ skip: opts.skip, take: opts.take, orderBy: { createdAt: 'desc' } })
+    const query = QueryBuilder.pagination(opts)
+    return db.user.findMany({ ...query, orderBy: QueryBuilder.defaultSort() })
   }
 
   async create(data: Prisma.UserCreateInput): Promise<User> {
