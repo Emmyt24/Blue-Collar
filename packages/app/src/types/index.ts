@@ -218,3 +218,52 @@ export interface TopWorker {
   bookmarkCount: number;
   avgRating: number;
 }
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+export type JobStatus = "open" | "closed" | "expired" | "filled";
+export type JobUrgency = "low" | "normal" | "urgent";
+export type ApplicationStatus = "pending" | "accepted" | "rejected" | "withdrawn";
+
+export interface Job {
+  id: string;
+  title: string;
+  description: string;
+  budget?: number | null;
+  skills: string[];
+  urgency: JobUrgency;
+  escrowAmount?: number | null;
+  escrowTxId?: string | null;
+  status: JobStatus;
+  expiresAt?: string | null;
+  renewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  category: Category;
+  location?: { id: string; city: string; state?: string | null; country: string } | null;
+  postedBy: { id: string; firstName: string; lastName: string; avatar?: string | null };
+  _count?: { applications: number; messages: number };
+}
+
+export interface JobApplication {
+  id: string;
+  jobId: string;
+  workerId: string;
+  coverLetter?: string | null;
+  proposedRate?: number | null;
+  status: ApplicationStatus;
+  createdAt: string;
+  updatedAt: string;
+  job?: { id: string; title: string; postedById: string };
+  worker?: { id: string; name: string; avatar?: string | null; email?: string | null; category?: Category };
+}
+
+export interface JobMessage {
+  id: string;
+  jobId: string;
+  body: string;
+  readAt?: string | null;
+  createdAt: string;
+  sender: { id: string; firstName: string; lastName: string; avatar?: string | null };
+  recipient: { id: string; firstName: string; lastName: string; avatar?: string | null };
+}

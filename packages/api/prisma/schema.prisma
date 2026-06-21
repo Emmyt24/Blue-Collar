@@ -64,6 +64,8 @@ model User {
   referralsMade               Referral[]            @relation("ReferralsMade")
   referralUsed                Referral?             @relation("ReferralUsed")
   jobs                        Job[]                 @relation("JobsPosted")
+  jobMessagesSent             JobMessage[]          @relation("JobMessagesSent")
+  jobMessagesReceived         JobMessage[]          @relation("JobMessagesReceived")
   refreshTokens               RefreshToken[]
   notificationPreferences     NotificationPreferences?
 }
@@ -345,21 +347,35 @@ model Referral {
 }
 
 model Job {
-  id           String         @id @default(cuid())
-  title        String
-  description  String
-  budget       Float?
-  categoryId   String
-  category     Category       @relation(fields: [categoryId], references: [id])
-  locationId   String?
-  location     Location?      @relation(fields: [locationId], references: [id])
-  postedById   String
-  postedBy     User           @relation("JobsPosted", fields: [postedById], references: [id])
-  status       JobStatus      @default(open)
-  expiresAt    DateTime?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  applications JobApplication[]
+  id            String        @id @default(cuid())
+  title         String
+  description   String
+  budget        Float?
+  /// Required skills as a plain string array (e.g. ["plumbing","pipe fitting"])
+  skills        String[]      @default([])
+  urgency       JobUrgency    @default(normal)
+  /// Amount held in escrow (Stellar XLM)
+  escrowAmount  Float?
+  /// Stellar escrow transaction/contract reference
+  escrowTxId    String?
+  categoryId    String
+  category      Category      @relation(fields: [categoryId], references: [id])
+  locationId    String?
+  location      Location?     @relation(fields: [locationId], references: [id])
+  postedById    String
+  postedBy      User          @relation("JobsPosted", fields: [postedById], references: [id])
+  status        JobStatus     @default(open)
+  expiresAt     DateTime?
+  renewedAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  applications  JobApplication[]
+  messages      JobMessage[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@index([postedById])
+  @@index([expiresAt])
 }
 
 model JobApplication {
@@ -369,11 +385,33 @@ model JobApplication {
   workerId    String
   worker      Worker            @relation(fields: [workerId], references: [id], onDelete: Cascade)
   coverLetter String?
+  proposedRate Float?
   status      ApplicationStatus @default(pending)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   @@unique([jobId, workerId])
+  @@index([jobId])
+  @@index([workerId])
+}
+
+// ─── Issue #687: Job messaging between poster and applicant ──────────────────
+
+model JobMessage {
+  id         String   @id @default(cuid())
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation("JobMessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient  User     @relation("JobMessagesReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+  body       String
+  readAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([jobId])
+  @@index([senderId])
+  @@index([recipientId])
 }
 
 // ─── Issue #analytics: Advanced Analytics & Reporting ────────────────────────
@@ -403,6 +441,7 @@ model WorkerAnalytics {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   worker        Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+}
 // ─── Issue #511: Refresh Token Rotation ──────────────────────────────────────
 
 model RefreshToken {
@@ -478,6 +517,12 @@ enum JobStatus {
   closed
   expired
   filled
+}
+
+enum JobUrgency {
+  low
+  normal
+  urgent
 }
 
 enum ApplicationStatus {

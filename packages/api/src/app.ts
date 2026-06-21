@@ -21,6 +21,7 @@ import insuranceRoutes from './routes/insurance.js'
 import referralRoutes from './routes/referral.js'
 import analyticsRoutes from './routes/analytics.js'
 import paymentRoutes from './routes/payments.js'
+import jobRoutes from './routes/jobs.js'
 import vitalsRoutes from './routes/vitals.js'
 import { auditMiddleware } from './middleware/audit.js'
 import { sanitize } from './middleware/sanitize.js'
@@ -72,6 +73,7 @@ app.use('/api/workers', insuranceRoutes)
 app.use('/api/referrals', referralRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/payments', paymentRoutes)
+app.use('/api/jobs', jobRoutes)
 app.use('/api', vitalsRoutes)
 // ── Versioned routes (v1) ─────────────────────────────────────────────────────
 app.use('/api/v1/auth', authRoutes)
@@ -88,6 +90,7 @@ app.use('/api/v1', responseTimeRoutes)
 app.use('/api/v1/workers', insuranceRoutes)
 app.use('/api/v1/referrals', referralRoutes)
 app.use('/api/v1/payments', paymentRoutes)
+app.use('/api/v1/jobs', jobRoutes)
 
 // ── Version endpoint ──────────────────────────────────────────────────────────
 app.get('/api/v1/version', (_req, res) => {
