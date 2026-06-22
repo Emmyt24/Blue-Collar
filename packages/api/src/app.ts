@@ -30,6 +30,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import docsRouter from './openapi/docs.js'
 import { metricsEndpoint, metricsMiddleware } from './middleware/metrics.js'
 import { getRateLimitStatus } from './middleware/versionRateLimit.js'
+import { versionAwareAuth, addAuthGuidanceHeaders } from './middleware/versionAuth.js'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -57,6 +58,8 @@ app.use(methodOverride('X-HTTP-Method'))
 app.use(passport.initialize())
 app.use(versionMiddleware)
 app.use(versionDeprecationMiddleware)
+app.use(versionAwareAuth)
+app.use(addAuthGuidanceHeaders)
 app.use(responseSchemaVersioning)
 app.use(auditMiddleware)
 
