@@ -31,6 +31,7 @@ import docsRouter from './openapi/docs.js'
 import { metricsEndpoint, metricsMiddleware } from './middleware/metrics.js'
 import { getRateLimitStatus } from './middleware/versionRateLimit.js'
 import { versionAwareAuth, addAuthGuidanceHeaders } from './middleware/versionAuth.js'
+import { getRolloutStatusEndpoint, updateRolloutEndpoint } from './utils/versionRollout.js'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -181,6 +182,16 @@ app.get('/api/v2/versions', (_req, res) => {
 app.get('/api/rate-limit', getRateLimitStatus)
 app.get('/api/v1/rate-limit', getRateLimitStatus)
 app.get('/api/v2/rate-limit', getRateLimitStatus)
+
+// ── Rollout status endpoints ──────────────────────────────────────────────────
+app.get('/api/rollout', getRolloutStatusEndpoint)
+app.get('/api/v1/rollout', getRolloutStatusEndpoint)
+app.get('/api/v2/rollout', getRolloutStatusEndpoint)
+
+// ── Admin: Update rollout configuration ───────────────────────────────────────
+app.put('/api/admin/rollout', updateRolloutEndpoint)
+app.put('/api/v1/admin/rollout', updateRolloutEndpoint)
+app.put('/api/v2/admin/rollout', updateRolloutEndpoint)
 
 // ── Redirect unversioned /api/* → /api/v1/* with deprecation headers ──────────
 app.use('/api', deprecationWarning, (req, res) => {
