@@ -45,6 +45,13 @@ export const ErrorMessages = {
   // ── Jobs ─────────────────────────────────────────────────────────────────
   WORKER_ID_REQUIRED: 'workerId is required',
   APPLICATION_STATUS_INVALID: 'status must be accepted or rejected',
+  JOB_NOT_FOUND: 'Job not found',
+  JOB_NOT_OPEN: 'Job is not accepting applications',
+  JOB_ALREADY_APPLIED: 'Already applied to this job',
+  JOB_CANNOT_WITHDRAW: 'Cannot withdraw a non-pending application',
+  JOB_FORBIDDEN: 'You do not own this job',
+  JOB_MESSAGE_RECIPIENT_REQUIRED: 'recipientId is required',
+  JOB_NOT_RENEWABLE: 'Only open or expired jobs can be renewed',
 
   // ── Reviews ───────────────────────────────────────────────────────────────
   RATING_INVALID: 'rating must be 1-5',
