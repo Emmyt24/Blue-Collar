@@ -430,6 +430,76 @@ registry.registerPath({
   },
 })
 
+// ── Versioning ────────────────────────────────────────────────────────────────
+registry.registerPath({
+  method: 'get', path: '/api/version', tags: ['Versioning'],
+  summary: 'Get API versioning information',
+  responses: {
+    200: {
+      description: 'API versioning info',
+      content: {
+        'application/json': {
+          schema: z.object({
+            apiPackageVersion: z.string(),
+            apiVersions: z.array(z.string()),
+            currentVersion: z.string(),
+            deprecatedVersions: z.array(z.string()),
+            status: z.string(),
+          }),
+        },
+      },
+    },
+  },
+})
+
+registry.registerPath({
+  method: 'get', path: '/api/v1/version', tags: ['Versioning'],
+  summary: 'Get v1 API version information',
+  responses: {
+    200: {
+      description: 'v1 API version info',
+      content: {
+        'application/json': {
+          schema: z.object({
+            version: z.string(),
+            apiVersion: z.string(),
+            status: z.string(),
+            supported: z.array(z.string()),
+            deprecated: z.array(z.string()),
+            sunset: z.null(),
+          }),
+        },
+      },
+    },
+  },
+})
+
+registry.registerPath({
+  method: 'get', path: '/api/v1/versions', tags: ['Versioning'],
+  summary: 'List all supported API versions with metadata',
+  responses: {
+    200: {
+      description: 'List of API versions',
+      content: {
+        'application/json': {
+          schema: z.object({
+            versions: z.array(z.object({
+              version: z.string(),
+              status: z.enum(['current', 'deprecated']),
+              sunset: z.string().nullable(),
+              rateLimiting: z.object({
+                requests: z.number(),
+                windowMs: z.number(),
+              }),
+            })),
+            current: z.string(),
+          }),
+        },
+      },
+    },
+  },
+})
+
 // ── Generate ──────────────────────────────────────────────────────────────────
 export function buildSpec() {
   return new OpenApiGeneratorV31(registry.definitions).generateDocument({

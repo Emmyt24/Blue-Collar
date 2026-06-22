@@ -25,10 +25,14 @@ import jobRoutes from './routes/jobs.js'
 import vitalsRoutes from './routes/vitals.js'
 import { auditMiddleware } from './middleware/audit.js'
 import { sanitize } from './middleware/sanitize.js'
-import { versionMiddleware, deprecationWarning } from './middleware/version.js'
+import { versionMiddleware, deprecationWarning, versionDeprecationMiddleware } from './middleware/version.js'
+import { responseSchemaVersioning } from './utils/schemaVersioning.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import docsRouter from './openapi/docs.js'
 import { metricsEndpoint, metricsMiddleware } from './middleware/metrics.js'
+import { getRateLimitStatus } from './middleware/versionRateLimit.js'
+import { versionAwareAuth, addAuthGuidanceHeaders } from './middleware/versionAuth.js'
+import { getRolloutStatusEndpoint, updateRolloutEndpoint } from './utils/versionRollout.js'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,7 +59,10 @@ app.use(requestLogger)
 app.use(methodOverride('X-HTTP-Method'))
 app.use(passport.initialize())
 app.use(versionMiddleware)
-
+app.use(versionDeprecationMiddleware)
+app.use(versionAwareAuth)
+app.use(addAuthGuidanceHeaders)
+app.use(responseSchemaVersioning)
 app.use(auditMiddleware)
 
 app.use('/api/auth', authRoutes)
@@ -92,17 +99,102 @@ app.use('/api/v1/referrals', referralRoutes)
 app.use('/api/v1/payments', paymentRoutes)
 app.use('/api/v1/jobs', jobRoutes)
 
+// ── Versioned routes (v2) ─────────────────────────────────────────────────────
+app.use('/api/v2/auth', authRoutes)
+app.use('/api/v2/categories', categoryRoutes)
+app.use('/api/v2/workers', workerRoutes)
+app.use('/api/v2/admin', adminRoutes)
+app.use('/api/v2/users', userRoutes)
+app.use('/api/v2/disputes', disputeRoutes)
+app.use('/api/v2/recommendations', recommendationRoutes)
+app.use('/api/v2/webhooks', webhookRoutes)
+app.use('/api/v2/verifications', verificationRoutes)
+app.use('/api/v2/audit', auditRoutes)
+app.use('/api/v2', responseTimeRoutes)
+app.use('/api/v2/workers', insuranceRoutes)
+app.use('/api/v2/referrals', referralRoutes)
+app.use('/api/v2/payments', paymentRoutes)
+
 // ── Version endpoint ──────────────────────────────────────────────────────────
+app.get('/api/version', (_req, res) => {
+  const { VERSION_CONFIG } = await import('./middleware/version.js')
+  res.json({
+    apiPackageVersion: API_VERSION,
+    apiVersions: Array.from(VERSION_CONFIG.supported),
+    currentVersion: VERSION_CONFIG.current,
+    deprecatedVersions: VERSION_CONFIG.deprecated,
+    status: 'current',
+  })
+})
+
 app.get('/api/v1/version', (_req, res) => {
+  const { VERSION_CONFIG } = await import('./middleware/version.js')
   res.json({
     version: API_VERSION,
     apiVersion: 'v1',
-    status: 'current',
-    supported: ['v1'],
-    deprecated: [],
-    sunset: null,
+    status: VERSION_CONFIG.deprecated.includes('v1') ? 'deprecated' : 'current',
+    supported: Array.from(VERSION_CONFIG.supported),
+    deprecated: VERSION_CONFIG.deprecated,
+    sunset: VERSION_CONFIG.sunset.v1,
   })
 })
+
+app.get('/api/v2/version', (_req, res) => {
+  const { VERSION_CONFIG } = await import('./middleware/version.js')
+  res.json({
+    version: API_VERSION,
+    apiVersion: 'v2',
+    status: VERSION_CONFIG.deprecated.includes('v2') ? 'deprecated' : 'current',
+    supported: Array.from(VERSION_CONFIG.supported),
+    deprecated: VERSION_CONFIG.deprecated,
+    sunset: VERSION_CONFIG.sunset.v2,
+  })
+})
+
+app.get('/api/v1/versions', (_req, res) => {
+  const { VERSION_CONFIG } = await import('./middleware/version.js')
+  const versionInfo = Array.from(VERSION_CONFIG.supported).map(v => ({
+    version: v,
+    status: VERSION_CONFIG.deprecated.includes(v) ? 'deprecated' : 'current',
+    sunset: VERSION_CONFIG.sunset[v as keyof typeof VERSION_CONFIG.sunset] || null,
+    rateLimiting: VERSION_CONFIG.rateLimitByVersion[v as keyof typeof VERSION_CONFIG.rateLimitByVersion],
+    authPolicy: VERSION_CONFIG.authPolicies[v as keyof typeof VERSION_CONFIG.authPolicies],
+  }))
+  res.json({
+    versions: versionInfo,
+    current: VERSION_CONFIG.current,
+  })
+})
+
+app.get('/api/v2/versions', (_req, res) => {
+  const { VERSION_CONFIG } = await import('./middleware/version.js')
+  const versionInfo = Array.from(VERSION_CONFIG.supported).map(v => ({
+    version: v,
+    status: VERSION_CONFIG.deprecated.includes(v) ? 'deprecated' : 'current',
+    sunset: VERSION_CONFIG.sunset[v as keyof typeof VERSION_CONFIG.sunset] || null,
+    rateLimiting: VERSION_CONFIG.rateLimitByVersion[v as keyof typeof VERSION_CONFIG.rateLimitByVersion],
+    authPolicy: VERSION_CONFIG.authPolicies[v as keyof typeof VERSION_CONFIG.authPolicies],
+  }))
+  res.json({
+    versions: versionInfo,
+    current: VERSION_CONFIG.current,
+  })
+})
+
+// ── Rate limit status endpoints ───────────────────────────────────────────────
+app.get('/api/rate-limit', getRateLimitStatus)
+app.get('/api/v1/rate-limit', getRateLimitStatus)
+app.get('/api/v2/rate-limit', getRateLimitStatus)
+
+// ── Rollout status endpoints ──────────────────────────────────────────────────
+app.get('/api/rollout', getRolloutStatusEndpoint)
+app.get('/api/v1/rollout', getRolloutStatusEndpoint)
+app.get('/api/v2/rollout', getRolloutStatusEndpoint)
+
+// ── Admin: Update rollout configuration ───────────────────────────────────────
+app.put('/api/admin/rollout', updateRolloutEndpoint)
+app.put('/api/v1/admin/rollout', updateRolloutEndpoint)
+app.put('/api/v2/admin/rollout', updateRolloutEndpoint)
 
 // ── Redirect unversioned /api/* → /api/v1/* with deprecation headers ──────────
 app.use('/api', deprecationWarning, (req, res) => {
