@@ -1,10 +1,10 @@
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_NAME = `bluecollar-v${CACHE_VERSION}`;
 const SHELL_CACHE = `bluecollar-shell-v${CACHE_VERSION}`;
 const DATA_CACHE = `bluecollar-data-v${CACHE_VERSION}`;
 const IMG_CACHE = `bluecollar-images-v${CACHE_VERSION}`;
 
-const STATIC_ASSETS = ["/", "/favicon.svg", "/logo.png", "/manifest.json"];
+const STATIC_ASSETS = ["/", "/favicon.svg", "/logo.png", "/manifest.json", "/offline.html"];
 const MAX_DATA_CACHE_SIZE = 50;
 const MAX_IMG_CACHE_SIZE = 100;
 
@@ -207,7 +207,11 @@ async function networkFirstWithShellFallback(request) {
   try {
     return await fetch(request);
   } catch {
-    return caches.match(request) || caches.match("/");
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    const offlinePage = await caches.match("/offline.html");
+    if (offlinePage) return offlinePage;
+    return new Response("Offline", { status: 503 });
   }
 }
 
