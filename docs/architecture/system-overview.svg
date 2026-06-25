@@ -1,11 +1,14 @@
 <!--
   BlueCollar System Architecture Diagram
-  Last updated: 2026-05-30
+  Last updated: 2026-06-25
   Author: BlueCollar Contributors
+
+  Maintenance: Update this diagram whenever major architectural relationships,
+  data flows, or contracts change. Keep it in sync with docs/CONTRACTS.md.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1160" viewBox="0 0 1600 1160" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1520" viewBox="0 0 1600 1520" role="img" aria-labelledby="title desc">
   <title id="title">BlueCollar System Architecture</title>
-  <desc id="desc">Full system overview: CDN, Next.js App, Express API, Redis, PostgreSQL, Prometheus, Grafana, Loki, Stellar Network, Registry Contract, Market Contract, Escrow Contract, and labelled data-flow arrows.</desc>
+  <desc id="desc">Full system overview: CDN, Next.js App, Express API, Redis, PostgreSQL, Prometheus, Grafana, Loki, Stellar Network, Registry Contract, Market Contract, Escrow Contract, Dispute Contract, FeeDistribution Contract, InsurancePool Contract, and labelled data-flow arrows.</desc>
 
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -31,6 +34,10 @@
     <linearGradient id="gContract" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0ea5e9"/>
       <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="gContractSup" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
     </linearGradient>
     <linearGradient id="gRedis" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#dc2626"/>
@@ -64,6 +71,9 @@
     <marker id="aOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#e85d04"/>
     </marker>
+    <marker id="aPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6d28d9"/>
+    </marker>
 
     <style>
       .label   { font: 600 16px 'Segoe UI', Tahoma, sans-serif; fill: #0f172a; }
@@ -79,12 +89,12 @@
   </defs>
 
   <!-- Background -->
-  <rect x="0" y="0" width="1600" height="1160" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1600" height="1520" fill="url(#bg)"/>
 
   <!-- Title -->
   <text x="50" y="52" style="font: 800 30px 'Segoe UI', Tahoma, sans-serif; fill: #0f172a;">BlueCollar Architecture Overview</text>
   <text x="50" y="76" class="small">CDN · Next.js · Express API · Redis · PostgreSQL · Prometheus · Grafana · Loki · Stellar / Soroban</text>
-  <text x="50" y="96" class="meta">Last updated: 2026-05-30 · Author: BlueCollar Contributors</text>
+  <text x="50" y="96" class="meta">Last updated: 2026-06-25 · Author: BlueCollar Contributors · Update on architectural PRs</text>
 
   <!-- ═══════════════════════════════════════════════════════════
        ROW 1 — Client tier
@@ -136,7 +146,7 @@
   <text x="1248" y="414" class="bSub">Jobs · Disputes</text>
 
   <!-- ═══════════════════════════════════════════════════════════
-       ROW 3 — Blockchain tier
+       ROW 3 — Core contracts
   ═══════════════════════════════════════════════════════════ -->
 
   <!-- Registry Contract -->
@@ -148,14 +158,18 @@
   <!-- Market Contract -->
   <rect x="720" y="530" width="220" height="110" rx="16" fill="url(#gContract)"/>
   <text x="748" y="570" class="bTitle">Market Contract</text>
-  <text x="748" y="592" class="bSub">Tips + direct payments</text>
-  <text x="748" y="612" class="bSub">Fee &amp; settlement</text>
+  <text x="748" y="592" class="bSub">Tips + Escrow payments</text>
+  <text x="748" y="612" class="bSub">Multi-sig + Arbitration</text>
 
   <!-- Escrow Contract -->
   <rect x="1000" y="530" width="220" height="110" rx="16" fill="url(#gContract)"/>
-  <text x="1028" y="570" class="bTitle">Escrow Contract</text>
+  <text x="1028" y="570" class="bTitle">Escrow (in Market)</text>
   <text x="1028" y="592" class="bSub">Time-locked payments</text>
   <text x="1028" y="612" class="bSub">Dispute resolution</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ROW 4 — Stellar Network
+  ═══════════════════════════════════════════════════════════ -->
 
   <!-- Stellar Network -->
   <rect x="380" y="710" width="900" height="110" rx="20" fill="url(#gStellar)"/>
@@ -164,30 +178,55 @@
   <text x="420" y="798" class="bSub">Wallet signing · On-chain verification · TTL-managed persistent storage</text>
 
   <!-- ═══════════════════════════════════════════════════════════
-       ROW 4 — Monitoring tier
+       ROW 5 — Supporting contracts
+  ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Section label -->
+  <text x="50" y="870" class="label" style="fill: #6d28d9;">Supporting Contracts</text>
+
+  <!-- Dispute Contract -->
+  <rect x="50" y="885" width="300" height="100" rx="16" fill="url(#gContractSup)"/>
+  <text x="78" y="925" class="bTitle">Dispute Contract</text>
+  <text x="78" y="947" class="bSub">File disputes · Submit evidence</text>
+  <text x="78" y="965" class="bSub">Arbitrator resolution</text>
+
+  <!-- FeeDistribution Contract -->
+  <rect x="400" y="885" width="300" height="100" rx="16" fill="url(#gContractSup)"/>
+  <text x="428" y="925" class="bTitle">FeeDistribution Contract</text>
+  <text x="428" y="947" class="bSub">Protocol fee collection</text>
+  <text x="428" y="965" class="bSub">Multi-recipient splits</text>
+
+  <!-- InsurancePool Contract -->
+  <rect x="750" y="885" width="300" height="100" rx="16" fill="url(#gContractSup)"/>
+  <text x="778" y="925" class="bTitle">InsurancePool Contract</text>
+  <text x="778" y="947" class="bSub">Contribution management</text>
+  <text x="778" y="965" class="bSub">Claims filing &amp; payout</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ROW 6 — Monitoring tier
   ═══════════════════════════════════════════════════════════ -->
 
   <!-- Monitoring group background -->
-  <rect x="50" y="700" width="290" height="160" rx="16" fill="#fff7ed" stroke="#fed7aa" stroke-width="2"/>
-  <text x="78" y="728" class="fTitle">Monitoring Stack</text>
+  <rect x="1150" y="870" width="400" height="130" rx="16" fill="#fff7ed" stroke="#fed7aa" stroke-width="2"/>
+  <text x="1178" y="898" class="fTitle">Monitoring Stack</text>
 
   <!-- Prometheus -->
-  <rect x="66" y="738" width="80" height="60" rx="10" fill="url(#gMonitor)"/>
-  <text x="76" y="762" class="bSub" style="font-size:11px;">Prometheus</text>
-  <text x="76" y="778" class="bSub" style="font-size:10px;">Metrics scrape</text>
+  <rect x="1166" y="908" width="110" height="60" rx="10" fill="url(#gMonitor)"/>
+  <text x="1176" y="932" class="bSub" style="font-size:11px;">Prometheus</text>
+  <text x="1176" y="950" class="bSub" style="font-size:10px;">Metrics scrape</text>
 
   <!-- Grafana -->
-  <rect x="162" y="738" width="80" height="60" rx="10" fill="url(#gMonitor)"/>
-  <text x="172" y="762" class="bSub" style="font-size:11px;">Grafana</text>
-  <text x="172" y="778" class="bSub" style="font-size:10px;">Dashboards</text>
+  <rect x="1292" y="908" width="110" height="60" rx="10" fill="url(#gMonitor)"/>
+  <text x="1302" y="932" class="bSub" style="font-size:11px;">Grafana</text>
+  <text x="1302" y="950" class="bSub" style="font-size:10px;">Dashboards</text>
 
   <!-- Loki -->
-  <rect x="258" y="738" width="68" height="60" rx="10" fill="url(#gMonitor)"/>
-  <text x="268" y="762" class="bSub" style="font-size:11px;">Loki</text>
-  <text x="268" y="778" class="bSub" style="font-size:10px;">Log agg.</text>
+  <rect x="1418" y="908" width="110" height="60" rx="10" fill="url(#gMonitor)"/>
+  <text x="1428" y="932" class="bSub" style="font-size:11px;">Loki</text>
+  <text x="1428" y="950" class="bSub" style="font-size:10px;">Log agg.</text>
 
   <!-- ═══════════════════════════════════════════════════════════
-       ARROWS — Row 1
+       ARROWS — Row 1 (Client Tier)
   ═══════════════════════════════════════════════════════════ -->
 
   <!-- Users → CDN (HTTPS) -->
@@ -238,9 +277,25 @@
   <line x1="730" y1="440" x2="830" y2="528" stroke="#b45309" stroke-width="3" fill="none" marker-end="url(#aAmber)"/>
   <text x="748" y="498" class="arrowLbl">contract call</text>
 
-  <!-- API → Escrow Contract -->
+  <!-- API → Escrow (part of Market) -->
   <path d="M800,440 L800,480 L1110,480 L1110,528" stroke="#b45309" stroke-width="3" fill="none" marker-end="url(#aAmber)"/>
   <text x="900" y="476" class="arrowLbl">escrow invoke</text>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ARROWS — Row 2 → Row 5 (supporting contracts)
+  ═══════════════════════════════════════════════════════════ -->
+
+  <!-- API → Dispute Contract -->
+  <path d="M610,440 L610,800 L200,800 L200,883" stroke="#6d28d9" stroke-width="2.5" stroke-dasharray="5,3" fill="none" marker-end="url(#aPurple)"/>
+  <text x="300" y="796" class="arrowLbl">dispute invoke</text>
+
+  <!-- API → FeeDistribution -->
+  <path d="M640,440 L640,810 L550,810 L550,883" stroke="#6d28d9" stroke-width="2.5" stroke-dasharray="5,3" fill="none" marker-end="url(#aPurple)"/>
+  <text x="560" y="806" class="arrowLbl">fee mgmt</text>
+
+  <!-- API → InsurancePool -->
+  <path d="M700,440 L700,820 L900,820 L900,883" stroke="#6d28d9" stroke-width="2.5" stroke-dasharray="5,3" fill="none" marker-end="url(#aPurple)"/>
+  <text x="780" y="816" class="arrowLbl">insurance</text>
 
   <!-- ═══════════════════════════════════════════════════════════
        ARROWS — Row 3 → Stellar
@@ -260,81 +315,109 @@
   <text x="1490" y="650" class="arrowLbl">Horizon API</text>
   <text x="1490" y="662" class="arrowLbl">(event poll)</text>
 
-  <!-- Next.js → Stellar (wallet signing) -->
+  <!-- ═══════════════════════════════════════════════════════════
+       ARROWS — Supporting Contracts → Stellar
+  ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Dispute → Stellar -->
+  <path d="M200,885 L200,820 L1110,820 L1110,822" stroke="#6d28d9" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aPurple)"/>
+
+  <!-- FeeDistribution → Stellar -->
+  <path d="M550,885 L550,830 L1110,830 L1110,822" stroke="#6d28d9" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aPurple)"/>
+
+  <!-- InsurancePool → Stellar -->
+  <path d="M900,885 L900,840 L1110,840 L1110,822" stroke="#6d28d9" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aPurple)"/>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       ARROWS — Next.js → Stellar (wallet signing)
+  ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Next.js → Stellar (wallet signing via Freighter) -->
   <path d="M860,240 Q1560,240 1560,765 L1282,765" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aAmber)"/>
   <text x="1380" y="234" class="arrowLbl">wallet sign (Freighter)</text>
+
+  <!-- Next.js → Stellar (read-only queries) -->
+  <path d="M840,240 L1520,240 L1520,710 L1520,710" stroke="#f59e0b" stroke-width="2" stroke-dasharray="3,3" fill="none" marker-end="url(#aAmber)"/>
+  <text x="1400" y="260" class="arrowLbl">read-only (simulate)</text>
 
   <!-- ═══════════════════════════════════════════════════════════
        ARROWS — Monitoring
   ═══════════════════════════════════════════════════════════ -->
 
   <!-- API → Prometheus (metrics scrape) -->
-  <path d="M600,440 L600,460 L106,460 L106,736" stroke="#e85d04" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aOrange)"/>
-  <text x="200" y="456" class="arrowLbl">metrics scrape (/metrics)</text>
+  <path d="M600,440 L600,460 L1221,460 L1221,906" stroke="#e85d04" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aOrange)"/>
+  <text x="800" y="456" class="arrowLbl">metrics scrape (/metrics)</text>
 
   <!-- API → Loki (logs) -->
-  <path d="M610,440 L610,470 L292,470 L292,736" stroke="#e85d04" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aOrange)"/>
-  <text x="300" y="466" class="arrowLbl">logs (Pino/Loki)</text>
+  <path d="M610,440 L610,470 L1473,470 L1473,906" stroke="#e85d04" stroke-width="2" stroke-dasharray="5,3" fill="none" marker-end="url(#aOrange)"/>
+  <text x="900" y="466" class="arrowLbl">logs (Pino/Loki)</text>
 
   <!-- Prometheus → Grafana (data source) -->
-  <line x1="146" y1="768" x2="160" y2="768" stroke="#e85d04" stroke-width="2" marker-end="url(#aOrange)"/>
+  <line x1="1276" y1="938" x2="1290" y2="938" stroke="#e85d04" stroke-width="2" marker-end="url(#aOrange)"/>
 
   <!-- Loki → Grafana (data source) -->
-  <line x1="258" y1="768" x2="244" y2="768" stroke="#e85d04" stroke-width="2" marker-end="url(#aOrange)"/>
+  <line x1="1418" y1="938" x2="1402" y2="938" stroke="#e85d04" stroke-width="2" marker-end="url(#aOrange)"/>
 
   <!-- ═══════════════════════════════════════════════════════════
        KEY FLOWS panel
   ═══════════════════════════════════════════════════════════ -->
-  <rect x="50" y="890" width="1500" height="240" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <text x="80" y="924" class="fTitle">Key Operation Data Flows</text>
+  <rect x="50" y="1050" width="1500" height="280" rx="18" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="80" y="1084" class="fTitle">Key Operation Data Flows</text>
 
-  <!-- Flow 1 -->
-  <text x="80" y="958" class="label">1) Registration</text>
-  <text x="80" y="978" class="small">User/Curator → Next.js → REST → API → Prisma → PostgreSQL (user/worker records)</text>
-  <text x="80" y="996" class="small">Curator on-chain → API → Registry Contract → Stellar ledger (immutable proof)</text>
+  <!-- Flow 1: Registration -->
+  <text x="80" y="1118" class="label">1) Worker Registration</text>
+  <text x="80" y="1138" class="small">Curator → Next.js → REST POST /workers → API → Prisma → PostgreSQL (user/worker records)</text>
+  <text x="80" y="1156" class="small">API → Registry Contract → Stellar ledger (immutable proof of registration)</text>
+  <text x="80" y="1174" class="small">Freighter: curator signs tx → Soroban RPC submits → event polled via Horizon → API persists tx hash</text>
 
-  <!-- Flow 2 -->
-  <text x="80" y="1030" class="label">2) Payment / Escrow</text>
-  <text x="80" y="1050" class="small">Frontend requests payment → Freighter signs tx → API validates → Market or Escrow Contract</text>
-  <text x="80" y="1068" class="small">Contract executes → settlement events polled via Horizon API → API updates PostgreSQL</text>
+  <!-- Flow 2: Discovery -->
+  <text x="80" y="1208" class="label">2) Worker Discovery / Search</text>
+  <text x="80" y="1228" class="small">Browser → Next.js → GET /workers (paginated) → API → Redis (cache hit?) → PostgreSQL</text>
+  <text x="80" y="1246" class="small">Optionally: query on-chain via simulateTransaction (read-only, no fee) for verification</text>
 
-  <!-- Flow 3 -->
-  <text x="80" y="1102" class="label">3) Worker Discovery</text>
-  <text x="80" y="1122" class="small">Browser → CDN (static/images) + Next.js → REST → API → Redis (cache hit?) → PostgreSQL</text>
+  <!-- Flow 3: Tipping -->
+  <text x="760" y="1118" class="label">3) Tipping / Payment</text>
+  <text x="760" y="1138" class="small">User → Next.js → "tip" action → Freighter signs tx → Soroban RPC → Market Contract</text>
+  <text x="760" y="1156" class="small">Contract: deducts fee_bps → transfers to worker + fee_recipient</text>
+  <text x="760" y="1174" class="small">Horizon event poll → API updates PostgreSQL job_completion record</text>
 
-  <!-- Flow 4 -->
-  <text x="760" y="958" class="label">4) Real-time Events</text>
-  <text x="760" y="978" class="small">API emits SSE stream → Next.js subscribes → live worker status / payment updates</text>
-
-  <!-- Flow 5 -->
-  <text x="760" y="1030" class="label">5) Observability</text>
-  <text x="760" y="1050" class="small">API exposes /metrics → Prometheus scrapes → Grafana dashboards</text>
-  <text x="760" y="1068" class="small">API logs (Pino) → Loki → Grafana log explorer</text>
+  <!-- Flow 4: Escrow Release / Dispute -->
+  <text x="760" y="1208" class="label">4) Escrow Release &amp; Dispute</text>
+  <text x="760" y="1228" class="small">Payer creates escrow → funds locked in Market Contract → worker completes work</text>
+  <text x="760" y="1246" class="small">Release: payer or worker calls release_escrow → funds transferred → event emitted</text>
+  <text x="760" y="1264" class="small">Dispute: either party files via Dispute Contract → arbitrator resolves → funds released/refunded</text>
+  <text x="760" y="1282" class="small">Multi-sig: threshold approvals → automatic release; arbitration via request_multisig_arbitration</text>
 
   <!-- ═══════════════════════════════════════════════════════════
        LEGEND
   ═══════════════════════════════════════════════════════════ -->
-  <rect x="1200" y="890" width="350" height="240" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
-  <text x="1224" y="920" class="fTitle">Legend</text>
+  <rect x="1200" y="1050" width="350" height="280" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="1224" y="1080" class="fTitle">Legend</text>
 
-  <line x1="1224" y1="944" x2="1290" y2="944" stroke="#1d4ed8" stroke-width="3" marker-end="url(#aBlue)"/>
-  <text x="1300" y="949" class="legend">REST / HTTPS / SSE</text>
+  <line x1="1224" y1="1104" x2="1290" y2="1104" stroke="#1d4ed8" stroke-width="3" marker-end="url(#aBlue)"/>
+  <text x="1300" y="1109" class="legend">REST / HTTPS / SSE</text>
 
-  <line x1="1224" y1="974" x2="1290" y2="974" stroke="#047857" stroke-width="3" marker-end="url(#aGreen)"/>
-  <text x="1300" y="979" class="legend">Database (Prisma ORM)</text>
+  <line x1="1224" y1="1134" x2="1290" y2="1134" stroke="#047857" stroke-width="3" marker-end="url(#aGreen)"/>
+  <text x="1300" y="1139" class="legend">Database (Prisma ORM)</text>
 
-  <line x1="1224" y1="1004" x2="1290" y2="1004" stroke="#b45309" stroke-width="3" marker-end="url(#aAmber)"/>
-  <text x="1300" y="1009" class="legend">Contract invocation / Stellar</text>
+  <line x1="1224" y1="1164" x2="1290" y2="1164" stroke="#b45309" stroke-width="3" marker-end="url(#aAmber)"/>
+  <text x="1300" y="1169" class="legend">Contract invocation / Stellar</text>
 
-  <line x1="1224" y1="1034" x2="1290" y2="1034" stroke="#dc2626" stroke-width="3" marker-end="url(#aRed)"/>
-  <text x="1300" y="1039" class="legend">Redis cache / rate-limit</text>
+  <line x1="1224" y1="1194" x2="1290" y2="1194" stroke="#dc2626" stroke-width="3" marker-end="url(#aRed)"/>
+  <text x="1300" y="1199" class="legend">Redis cache / rate-limit</text>
 
-  <line x1="1224" y1="1064" x2="1290" y2="1064" stroke="#0891b2" stroke-width="3" marker-end="url(#aCyan)"/>
-  <text x="1300" y="1069" class="legend">CDN / edge cache</text>
+  <line x1="1224" y1="1224" x2="1290" y2="1224" stroke="#0891b2" stroke-width="3" marker-end="url(#aCyan)"/>
+  <text x="1300" y="1229" class="legend">CDN / edge cache</text>
 
-  <line x1="1224" y1="1094" x2="1290" y2="1094" stroke="#e85d04" stroke-width="3" marker-end="url(#aOrange)"/>
-  <text x="1300" y="1099" class="legend">Metrics / logs (observability)</text>
+  <line x1="1224" y1="1254" x2="1290" y2="1254" stroke="#e85d04" stroke-width="3" marker-end="url(#aOrange)"/>
+  <text x="1300" y="1259" class="legend">Metrics / logs (observability)</text>
 
-  <line x1="1224" y1="1114" x2="1290" y2="1114" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#aBlue)"/>
-  <text x="1300" y="1119" class="legend">Dashed = async / optional path</text>
+  <line x1="1224" y1="1284" x2="1290" y2="1284" stroke="#6d28d9" stroke-width="3" marker-end="url(#aPurple)"/>
+  <text x="1300" y="1289" class="legend">Supporting contracts (dashed)</text>
+
+  <line x1="1224" y1="1314" x2="1290" y2="1314" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#aBlue)"/>
+  <text x="1300" y="1319" class="legend">Dashed = async / optional path</text>
+
+  <!-- Maintenance note -->
+  <text x="50" y="1430" class="meta">Maintenance: update this diagram whenever major architectural relationships or contracts change. Source: docs/architecture/system-overview.svg</text>
 </svg>

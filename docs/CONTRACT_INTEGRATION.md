@@ -2,6 +2,8 @@
 
 Covers how to call the Registry and Market contracts from the Next.js app using `@stellar/stellar-sdk`.
 
+> For complete contract function signatures, storage maps, events, and authorization rules, see [CONTRACTS.md](./CONTRACTS.md).
+
 ## Configuration
 
 ```ts

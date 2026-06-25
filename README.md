@@ -41,6 +41,7 @@ Many skilled workers lack a platform to help them get noticed. Meanwhile, countl
 - [Security Policy](packages/api/SECURITY.md)
 - [Environment Variables](docs/ENVIRONMENT_VARIABLES.md)
 - [User Guide](docs/USER_GUIDE.md)
+- [Contract Reference](docs/CONTRACTS.md)
 - [Contract Integration Guide](docs/CONTRACT_INTEGRATION.md)
 - [Contributing Guide](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
@@ -68,24 +69,33 @@ Many skilled workers lack a platform to help them get noticed. Meanwhile, countl
 ```
 User / Browser
       │
-      ▼
- [Next.js App]  ──────────────────────────────────────────────────────────┐
-      │                                                                    │
-      ▼                                                                    ▼
- [BlueCollar API]  (Node.js / Express / TypeScript)          [Stellar Network]
-      │                                                                    │
-      ▼                                                                    ▼
- [PostgreSQL via Prisma]                              [Soroban Smart Contracts]
-                                                       ├── Registry Contract
-                                                       └── Market Contract
+      ├────────────────────────────────────────────────────┐
+      ▼                                                     ▼
+ [Next.js App]  ──────────────────────────────┐   [Stellar Network]
+      │                                        │         │
+      ▼                                        ▼         ▼
+ [BlueCollar API]  (Node.js / Express / TS)    │  [Soroban Smart Contracts]
+      │                                        │   ├── Registry
+      ▼                                        │   ├── Market (Escrow)
+ [PostgreSQL via Prisma]                       │   ├── Dispute
+                                               │   ├── FeeDistribution
+                                               │   └── InsurancePool
+                                               ▼
+                                      [Freighter Wallet]
+                                        (signing path)
 ```
 
 - The **API** handles authentication, category management, and worker CRUD. It stores data in PostgreSQL via Prisma ORM.
-- The **Registry Contract** (Rust/Soroban) anchors worker registrations on the Stellar blockchain, providing immutable proof of listing.
-- The **Market Contract** (Rust/Soroban) handles on-chain tip/payment transfers between users and workers using Stellar tokens (XLM or custom assets).
-- The **App** is a Next.js frontend that consumes the API and interacts with Stellar wallets (Freighter, etc.).
+- **Registry Contract** (Rust/Soroban) — anchors worker registrations, reputation, staking, and category verification on-chain.
+- **Market Contract** (Rust/Soroban) — handles tips, escrow payments, multi-sig escrows, and arbitration.
+- **Dispute Contract** (Rust/Soroban) — file disputes, submit evidence, and resolve through arbitration.
+- **FeeDistribution Contract** (Rust/Soroban) — collects and distributes protocol fees to configured recipients.
+- **InsurancePool Contract** (Rust/Soroban) — manages contribution pool, claims filing, and payout.
+- The **App** is a Next.js frontend that consumes the API and interacts with Stellar wallets (Freighter) for on-chain signing.
 
-Diagram maintenance note: update `docs/architecture/system-overview.svg` whenever major architectural relationships or data flows change.
+For detailed contract signatures, storage maps, and events, see [docs/CONTRACTS.md](./docs/CONTRACTS.md).
+
+Diagram maintenance note: update `docs/architecture/system-overview.svg` whenever major architectural relationships, contracts, or data flows change. The SVG is the canonical source; it can be edited in any SVG editor or imported into diagrams.net.
 
 ---
 
@@ -155,28 +165,19 @@ The backend REST API built with **Node.js**, **Express**, and **TypeScript**. Us
 
 Stellar **Soroban** smart contracts written in **Rust**.
 
-#### Registry Contract
+Five contracts are deployed across the protocol:
 
-Manages on-chain worker registrations. Workers are stored in persistent contract storage keyed by a unique `Symbol` id.
+| Contract | Location | Purpose |
+|---|---|---|
+| **Registry** | `contracts/registry/` | Worker registration, reputation, staking, categories, badges |
+| **Market** | `contracts/market/` | Tips, escrow, multi-sig payments, arbitration |
+| **Dispute** | `contracts/dispute/` | Dispute filing, evidence, arbitrator resolution |
+| **FeeDistribution** | `contracts/fee_distribution/` | Fee collection, multi-recipient splits |
+| **InsurancePool** | `contracts/insurance_pool/` | Contribution pool, claims management |
 
-```
-register(id, owner, name, category)  → stores Worker on-chain
-get_worker(id)                        → returns Worker struct
-toggle(id, caller)                    → flips is_active (owner only)
-list_workers()                        → returns all worker ids
-upgrade(admin, new_wasm_hash)         → upgrades contract WASM (admin only)
-```
+All contracts are compiled to WASM and deployed to the Stellar network (testnet / mainnet).
 
-#### Market Contract
-
-Handles direct token transfers (tips/payments) between users and workers.
-
-```
-tip(from, to, token_addr, amount)  → transfers Stellar tokens from user to worker
-upgrade(admin, new_wasm_hash)      → upgrades contract WASM (admin only)
-```
-
-Both contracts are compiled to WASM and deployed to the Stellar network (testnet / mainnet).
+For complete function signatures, storage maps, event catalogues, and authorization rules, see [docs/CONTRACTS.md](./docs/CONTRACTS.md).
 
 ---
 
@@ -257,6 +258,8 @@ Admin endpoints mirror the Curator endpoints but are scoped to the `admin` role 
 ---
 
 ## Smart Contracts
+
+For the full contract reference including signatures, storage maps, events, and authorization rules, see [docs/CONTRACTS.md](./docs/CONTRACTS.md). The summary below covers build, deploy, and common operations.
 
 ### Prerequisites
 

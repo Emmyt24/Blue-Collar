@@ -2,6 +2,8 @@
 
 A step-by-step guide for safely upgrading the BlueCollar **Registry** and **Market** contracts deployed on Stellar (Soroban), without losing contract IDs or storage state.
 
+> For complete contract function signatures, storage maps, events, and authorization rules, see [CONTRACTS.md](./CONTRACTS.md).
+
 ---
 
 ## How Soroban Upgrades Work
