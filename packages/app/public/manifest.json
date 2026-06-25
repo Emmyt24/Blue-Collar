@@ -1,18 +1,28 @@
 {
-  "name": "BlueCollar - Find Skilled Workers",
+  "name": "BlueCollar — Find Skilled Workers Near You",
   "short_name": "BlueCollar",
-  "description": "Find Skilled Workers Near You — Connect with local plumbers, electricians, carpenters, and more",
+  "description": "Find Skilled Workers Near You — Connect with local plumbers, electricians, carpenters, and more. Secure payments on the Stellar blockchain.",
   "start_url": "/",
   "scope": "/",
+  "id": "/?source=pwa",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
-  "categories": ["productivity", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities", "business"],
   "screenshots": [
     {
+      "src": "/og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
       "src": "/logo.png",
-      "sizes": "192x192",
+      "sizes": "200x60",
       "type": "image/png",
       "form_factor": "narrow"
     }
@@ -25,9 +35,9 @@
       "url": "/workers",
       "icons": [
         {
-          "src": "/logo.png",
+          "src": "/icon-192.svg",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/svg+xml"
         }
       ]
     },
@@ -38,9 +48,22 @@
       "url": "/bookmarks",
       "icons": [
         {
-          "src": "/logo.png",
+          "src": "/icon-192.svg",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Manage your workers and analytics",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
         }
       ]
     }
@@ -58,16 +81,30 @@
       "purpose": "any maskable"
     },
     {
-      "src": "/logo.png",
+      "src": "/icon-192.svg",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
       "src": "/logo.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     }
-  ]
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "handle_links": "preferred",
+  "prefer_related_applications": false
 }

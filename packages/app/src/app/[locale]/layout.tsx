@@ -12,6 +12,7 @@ import BottomNav from "@/components/BottomNav";
 import OnboardingTour from "@/components/OnboardingTour";
 import WebVitalsReporter from "@/components/WebVitalsReporter";
 import OfflineBanner from "@/components/OfflineBanner";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export default async function LocaleLayout({ 
   children, 
@@ -35,6 +36,7 @@ export default async function LocaleLayout({
                 <CompareProvider>
                   <WebVitalsReporter />
                   <OfflineBanner />
+                  <InstallPrompt />
                   <div id="main-content" tabIndex={-1}>
                     {children}
                   </div>

@@ -32,6 +32,15 @@ const nextConfig = {
           value: 'application/manifest+json'
         }
       ]
+    },
+    {
+      source: '/offline.html',
+      headers: [
+        {
+          key: 'Cache-Control',
+          value: 'public, max-age=0, must-revalidate'
+        }
+      ]
     }
   ]
 };
