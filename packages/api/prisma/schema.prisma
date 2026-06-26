@@ -73,6 +73,7 @@ model User {
   conversations               ConversationParticipant[]
   messagesSent                Message[]
   initiatedConversations      Conversation[]           @relation("ConversationInitiator")
+  stellarAccounts             StellarAccount[]
 }
 
 model Category {
@@ -488,6 +489,51 @@ model IdempotencyKey {
 
   @@unique([key, userId])
   @@index([expiresAt])
+}
+
+// ─── Issue #751: On-Chain Event Indexer Service ───────────────────────────────
+
+model ContractEvent {
+  id            String   @id @default(cuid())
+  contractId    String
+  eventName     String
+  ledger        BigInt
+  txIndex       Int
+  eventIndex    Int
+  indexed       Json     // Array of indexed parameters
+  data          Json?    // Additional event data
+  processedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@unique([contractId, ledger, txIndex, eventIndex])
+  @@index([contractId])
+  @@index([ledger])
+  @@index([eventName])
+  @@index([createdAt])
+}
+
+model EventIndexerCursor {
+  id         String   @id @default(cuid())
+  contractId String   @unique
+  ledger     BigInt   @default(0)
+  txIndex    Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+// ─── Issue #752: Wallet Integration Service ───────────────────────────────────
+
+model StellarAccount {
+  id           String    @id @default(cuid())
+  publicKey    String    @unique
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Float     @default(0)
+  sequences    BigInt    @default(0)
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
