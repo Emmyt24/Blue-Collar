@@ -5,6 +5,7 @@ members = [
     "contracts/market",
     "contracts/dispute",
     "contracts/fuzz",
+    "contracts/integration",
 ]
 resolver = "2"
 
