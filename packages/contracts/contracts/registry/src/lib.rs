@@ -24,6 +24,9 @@ use soroban_sdk::{
     Symbol, Vec,
 };
 
+/// Event schema version — bump when adding/removing/renaming events.
+pub const VERSION: u32 = 1;
+
 /// Approximate TTL extension target (~1 year at 5 s/ledger).
 const TTL_EXTEND_TO: u32 = 535_000;
 /// Extend TTL only when it drops below this threshold (~6 months).
@@ -655,7 +658,7 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
         let pauser_role = Self::role_symbol(&env, ROLE_PAUSER_CACHED);
         Self::require_role(&env, &pauser_role, &admin);
         env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish((Symbol::new(&env, "ContractPaused"), admin), ());
+        env.events().publish((symbol_short!("Paused"), admin), ());
     }
 
     /// Unpause the contract, re-enabling all state-mutating operations.
@@ -667,12 +670,12 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
     /// Panics with `"Missing role"` if `admin` does not hold `ROLE_PAUSER`.
     ///
     /// # Events
-    /// Emits `("ContractUnpaused", admin)`.
+    /// Emits `("Unpaused", admin)`.
     pub fn unpause(env: Env, admin: Address) {
         let pauser_role = Self::role_symbol(&env, ROLE_PAUSER_CACHED);
         Self::require_role(&env, &pauser_role, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish((Symbol::new(&env, "ContractUnpaused"), admin), ());
+        env.events().publish((symbol_short!("Unpaused"), admin), ());
     }
 
     /// Returns `true` if the contract is currently paused.
@@ -833,8 +836,6 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
         let key = DataKey::Worker(id.clone());
         env.storage().persistent().set(&key, &worker);
         env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Emit Worker TTL extended event
-        env.events().publish((Symbol::new(&env, "WorkerTTLExtended"), id.clone()), ());
 
         let list_key = DataKey::WorkerList;
         let mut list: Vec<Symbol> = env
@@ -845,8 +846,6 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
         list.push_back(id.clone());
         env.storage().persistent().set(&list_key, &list);
         env.storage().persistent().extend_ttl(&list_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Emit WorkerList TTL extended event
-        env.events().publish((Symbol::new(&env, "WorkerListTTLExtended"), ()), ());
 
         // #529: Maintain WorkerCount for efficient pagination.
         let count: u32 = env
@@ -859,7 +858,7 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
             .set(&DataKey::WorkerCount, &(count + 1));
 
         env.events().publish(
-            (Symbol::new(&env, "WorkerRegistered"), id),
+            (symbol_short!("WrkReg"), id),
             (owner, category),
         );
     }
@@ -893,7 +892,7 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
         let new_status = worker.is_active;
         env.storage().persistent().set(&DataKey::Worker(id.clone()), &worker);
 
-        env.events().publish((Symbol::new(&env, "WorkerToggled"), id), new_status);
+        env.events().publish((symbol_short!("WrkTgl"), id), new_status);
     }
 
     /// Update a worker's name, category, location hash, and contact hash. Owner only.
@@ -1121,6 +1120,11 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
     /// Returns `true` if the contract has been initialised.
     pub fn is_initialized(env: Env) -> bool {
         env.storage().persistent().has(&DataKey::Admin)
+    }
+
+    /// Return the event schema version.
+    pub fn version(_env: Env) -> u32 {
+        VERSION
     }
 
      /// Get the admin address.
@@ -1552,8 +1556,6 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
         worker.avg_rating = avg_rating;
         env.storage().persistent().set(&DataKey::Worker(id.clone()), &worker);
         env.storage().persistent().extend_ttl(&DataKey::Worker(id.clone()), TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Emit Worker TTL extended event
-        env.events().publish((Symbol::new(&env, "WorkerTTLExtended"), id.clone()), ());
 
         env.events().publish((symbol_short!("RevUpd"), id), (review_count, avg_rating));
     }
@@ -1639,8 +1641,6 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
 
         env.storage().persistent().set(&DataKey::Worker(id.clone()), &worker);
         env.storage().persistent().extend_ttl(&DataKey::Worker(id.clone()), TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Emit Worker TTL extended event
-        env.events().publish((Symbol::new(&env, "WorkerTTLExtended"), id.clone()), ());
 
         env.events().publish((symbol_short!("SubRnw"), id), new_expires_at);
     }
@@ -1850,6 +1850,46 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
     /// Maximum number of workers that can be registered in a single batch call.
     pub const MAX_BATCH_SIZE: u32 = 20;
 
+    /// Toggle the `is_active` status of multiple workers in one transaction. Curator only.
+    ///
+    /// Skips workers not owned by `caller` rather than aborting the batch.
+    ///
+    /// # Parameters
+    /// - `caller`: Must be an approved curator; `require_auth()` is enforced.
+    /// - `ids`: Worker ids to toggle (max [`MAX_BATCH_SIZE`] entries).
+    ///
+    /// # Returns
+    /// A `Vec<(Symbol, bool)>` of `(id, new_is_active)` for each successfully toggled worker.
+    ///
+    /// # Panics
+    /// - `"Caller is not a curator"` if `caller` is not in the curator list.
+    /// - `"Batch too large"` if `ids.len() > MAX_BATCH_SIZE`.
+    ///
+    /// # Events
+    /// Emits `("WrkTgl", id)` with data `new_is_active` for each toggled worker.
+    pub fn batch_toggle(env: Env, caller: Address, ids: Vec<Symbol>) -> Vec<Symbol> {
+        caller.require_auth();
+        Self::require_not_paused(&env);
+        assert!(
+            Self::get_curators(&env).iter().any(|c| c == caller),
+            "Caller is not a curator"
+        );
+        assert!(ids.len() <= Self::MAX_BATCH_SIZE, "Batch too large");
+
+        let mut toggled: Vec<Symbol> = Vec::new(&env);
+        for id in ids.iter() {
+            let key = DataKey::Worker(id.clone());
+            if let Some(mut worker) = env.storage().persistent().get::<DataKey, Worker>(&key) {
+                worker.is_active = !worker.is_active;
+                let new_status = worker.is_active;
+                env.storage().persistent().set(&key, &worker);
+                env.events().publish((symbol_short!("WrkTgl"), id.clone()), new_status);
+                toggled.push_back(id);
+            }
+        }
+        toggled
+    }
+
     /// Register multiple workers in one transaction. Curator only.
     ///
     /// Processes up to [`MAX_BATCH_SIZE`] entries. Duplicate ids are skipped
@@ -1928,8 +1968,6 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
 
             env.storage().persistent().set(&key, &worker);
         env.storage().persistent().extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Emit Worker TTL extended event
-        env.events().publish((Symbol::new(&env, "WorkerTTLExtended"), id.clone()), ());
             list.push_back(id.clone());
 
             env.events().publish(
@@ -1942,8 +1980,6 @@ fn role_to_id_with_env(env: &Env, role: &Symbol) -> u64 {
 
         env.storage().persistent().set(&list_key, &list);
         env.storage().persistent().extend_ttl(&list_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        // Emit WorkerList TTL extended event
-        env.events().publish((Symbol::new(&env, "WorkerListTTLExtended"), ()), ());
 
         results
     }
