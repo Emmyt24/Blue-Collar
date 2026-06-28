@@ -11,6 +11,7 @@ import { env } from './config/env.js'
 import pinoHttp from 'pino-http'
 import methodOverride from 'method-override'
 import passport from './config/passport.js'
+import { compress } from './middleware/compress.js'
 import authRoutes from './routes/auth.js'
 import categoryRoutes from './routes/categories.js'
 import workerRoutes from './routes/workers.js'
@@ -28,12 +29,29 @@ import { WebSocketServer } from './websocket/server.js'
 const app = express()
 const PORT = env.PORT || 3000
 
-applySecurity(app)
-app.use(express.json({ limit: '100kb' }))
-app.use(express.urlencoded({ extended: true, limit: '100kb' }))
-app.use(sanitize)
-app.use(sanitizeParams)
-app.use(depthLimiter)
+app.disable('x-powered-by')
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc,
+    },
+  },
+  hsts: {
+    maxAge: 31_536_000,
+    includeSubDomains: true,
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+}))
+
+app.use(compress())
+app.use(cors(corsConfig))
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
 app.use(pinoHttp())
 app.use(methodOverride('X-HTTP-Method'))
 app.use(passport.initialize())
