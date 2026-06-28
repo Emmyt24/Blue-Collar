@@ -75,6 +75,7 @@ model User {
   messagesSent                Message[]
   initiatedConversations      Conversation[]           @relation("ConversationInitiator")
   stellarAccounts             StellarAccount[]
+  bookingsRequested           Booking[]                @relation("BookingRequester")
 }
 
 model Category {
@@ -129,6 +130,7 @@ model Worker {
   jobApplications     JobApplication[]
   profileViews        ProfileView[]
   analytics           WorkerAnalytics?
+  bookings            Booking[]
 
   @@index([isActive, categoryId])
   @@index([curatorId])
@@ -840,6 +842,8 @@ enum BookingStatus {
   confirmed
   cancelled
   completed
+}
+
 // ─── Issue #749: Device & Session Management ─────────────────────────────────
 
 model Device {
