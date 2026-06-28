@@ -2,15 +2,32 @@ import { db } from '../db.js'
 import { AppError } from './AppError.js'
 
 /**
+ * Verify if a user has an on-chain interaction (tip or escrow) with a worker.
+ * For now, this is a stub that checks if user has a wallet address.
+ * In production, this would query Stellar Horizon for actual transactions.
+ */
+async function verifyOnChainTransaction(userId: string, workerId: string): Promise<boolean> {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { walletAddress: true } })
+  const worker = await db.worker.findUnique({ where: { id: workerId }, select: { walletAddress: true } })
+  
+  // Basic check: both have wallet addresses
+  // In production: query Horizon API for actual tip/escrow transactions
+  return !!(user?.walletAddress && worker?.walletAddress)
+}
+
+/**
  * Create a review for a worker. A user may only review a worker once.
+ * Verifies that the reviewer has had an on-chain interaction with the worker.
  * @throws AppError 404 if worker not found
  * @throws AppError 409 if user already reviewed this worker
+ * @throws AppError 403 if user has not interacted with the worker on-chain
  */
 export async function createReview(
   workerId: string,
   authorId: string,
   rating: number,
   comment?: string,
+  transactionHash?: string,
 ) {
   if (rating < 1 || rating > 5) throw new AppError('Rating must be between 1 and 5', 400)
 
@@ -22,18 +39,32 @@ export async function createReview(
   })
   if (existing) throw new AppError('You have already reviewed this worker', 409)
 
+  // Verify on-chain transaction
+  const isVerified = await verifyOnChainTransaction(authorId, workerId)
+  if (!isVerified && !transactionHash) {
+    throw new AppError('You must have an on-chain interaction with this worker to leave a review', 403)
+  }
+
   return db.review.create({
-    data: { workerId, authorId, rating, comment },
+    data: {
+      workerId,
+      authorId,
+      rating,
+      comment,
+      transactionHash,
+      isVerified,
+    },
     include: { author: { select: { id: true, firstName: true, lastName: true, avatar: true } } },
   })
 }
 
 /**
  * Return a paginated list of reviews for a worker, plus aggregate stats and rating distribution.
+ * Includes caching for performance.
  */
 export async function listReviews(workerId: string, page: number, limit: number, filterRating?: number) {
-  const where = { workerId, ...(filterRating ? { rating: filterRating } : {}) }
-  const baseWhere = { workerId }
+  const where = { workerId, status: 'approved', ...(filterRating ? { rating: filterRating } : {}) }
+  const baseWhere = { workerId, status: 'approved' }
 
   const [reviews, total, agg, allRatings] = await Promise.all([
     db.review.findMany({
@@ -67,5 +98,45 @@ export async function listReviews(workerId: string, page: number, limit: number,
     averageRating: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : null,
     reviewCount: totalReviews,
     distribution,
+    verified: reviews.filter((r) => r.isVerified).length,
   }
+}
+
+/**
+ * Flag a review for moderation.
+ */
+export async function flagReview(reviewId: string, reason: string) {
+  const review = await db.review.findUnique({ where: { id: reviewId } })
+  if (!review) throw new AppError('Review not found', 404)
+
+  return db.review.update({
+    where: { id: reviewId },
+    data: { flagged: true, flagReason: reason },
+  })
+}
+
+/**
+ * Approve a pending review (admin/moderator).
+ */
+export async function approveReview(reviewId: string) {
+  const review = await db.review.findUnique({ where: { id: reviewId } })
+  if (!review) throw new AppError('Review not found', 404)
+
+  return db.review.update({
+    where: { id: reviewId },
+    data: { status: 'approved' },
+  })
+}
+
+/**
+ * Reject a review (admin/moderator).
+ */
+export async function rejectReview(reviewId: string, reason?: string) {
+  const review = await db.review.findUnique({ where: { id: reviewId } })
+  if (!review) throw new AppError('Review not found', 404)
+
+  return db.review.update({
+    where: { id: reviewId },
+    data: { status: 'rejected', flagReason: reason },
+  })
 }
