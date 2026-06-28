@@ -67,6 +67,7 @@ model User {
   jobMessagesSent             JobMessage[]          @relation("JobMessagesSent")
   jobMessagesReceived         JobMessage[]          @relation("JobMessagesReceived")
   refreshTokens               RefreshToken[]
+  devices                     Device[]
   notificationPreferences     NotificationPreferences?
   notifications               Notification[]
   helpfulVotes                ReviewHelpful[]
@@ -656,4 +657,21 @@ model Message {
   sender         User         @relation(fields: [senderId], references: [id])
 
   @@index([conversationId, createdAt])
+}
+
+// ─── Issue #749: Device & Session Management ─────────────────────────────────
+
+model Device {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceName    String    // e.g., "Chrome on MacOS", "Firefox on Windows"
+  userAgent     String?
+  ipAddress     String
+  lastUsedAt    DateTime  @updatedAt
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+
+  @@index([userId])
+  @@index([userId, revokedAt])
 }

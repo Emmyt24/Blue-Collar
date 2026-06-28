@@ -37,8 +37,14 @@ function generateRefreshToken() {
 /**
  * Authenticate a user with email and password.
  * Issues a short-lived access token (15 min) and a long-lived refresh token (7 days).
+ * Optionally registers a device for the session.
  */
-export async function loginUser({ email, password }: LoginBody) {
+export async function loginUser(
+  { email, password }: LoginBody,
+  deviceName?: string,
+  userAgent?: string,
+  ipAddress?: string,
+) {
   logger.debug('Login attempt', { email })
   const user = await db.user.findUnique({ where: { email } })
   if (!user || !user.password || !(await argon2.verify(user.password, password))) {
@@ -60,8 +66,17 @@ export async function loginUser({ email, password }: LoginBody) {
   const { raw: refreshTokenRaw, hash: refreshTokenHash, expiresAt } = generateRefreshToken()
   await db.refreshToken.create({ data: { userId: user.id, tokenHash: refreshTokenHash, expiresAt } })
 
+  // Register device if provided
+  let deviceId: string | undefined
+  if (deviceName && ipAddress) {
+    const device = await db.device.create({
+      data: { userId: user.id, deviceName, userAgent, ipAddress },
+    })
+    deviceId = device.id
+  }
+
   logger.info('User logged in successfully', { userId: user.id, email })
-  return { data: sanitizeUser(user), token: accessToken, refreshToken: refreshTokenRaw }
+  return { data: sanitizeUser(user), token: accessToken, refreshToken: refreshTokenRaw, deviceId }
 }
 
 /**

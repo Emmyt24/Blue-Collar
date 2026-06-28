@@ -27,7 +27,28 @@ import type {
  */
 export async function login(req: Request<{}, {}, LoginBody>, res: Response) {
   try {
-    const { data, token, refreshToken } = await authService.loginUser(req.body);
+    const userAgent = req.get('user-agent')
+    const ipAddress = (req.get('x-forwarded-for') || req.ip || '').split(',')[0].trim()
+    
+    // Parse device name from user agent (basic heuristic)
+    let deviceName = 'Unknown Device'
+    if (userAgent) {
+      if (userAgent.includes('Chrome')) deviceName = 'Chrome'
+      else if (userAgent.includes('Firefox')) deviceName = 'Firefox'
+      else if (userAgent.includes('Safari')) deviceName = 'Safari'
+      else if (userAgent.includes('Mobile')) deviceName = 'Mobile'
+      
+      if (userAgent.includes('Windows')) deviceName += ' on Windows'
+      else if (userAgent.includes('Macintosh')) deviceName += ' on Mac'
+      else if (userAgent.includes('Linux')) deviceName += ' on Linux'
+    }
+
+    const { data, token, refreshToken, deviceId } = await authService.loginUser(
+      req.body,
+      deviceName,
+      userAgent,
+      ipAddress,
+    )
     return res.status(202).json({
       data: UserResource(data as any),
       status: "success",
@@ -35,9 +56,10 @@ export async function login(req: Request<{}, {}, LoginBody>, res: Response) {
       code: 202,
       token,
       refreshToken,
-    });
+      deviceId,
+    })
   } catch (err) {
-    return handleError(res, err);
+    return handleError(res, err)
   }
 }
 
