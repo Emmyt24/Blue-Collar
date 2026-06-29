@@ -75,7 +75,7 @@ model User {
   messagesSent                Message[]
   initiatedConversations      Conversation[]           @relation("ConversationInitiator")
   stellarAccounts             StellarAccount[]
-  bookingRequests             Booking[]              @relation("BookingRequester")
+  bookingsRequested           Booking[]                @relation("BookingRequester")
 }
 
 model Category {
@@ -130,7 +130,6 @@ model Worker {
   jobApplications     JobApplication[]
   profileViews        ProfileView[]
   analytics           WorkerAnalytics?
-  tipEvents           WorkerTipEvent[]
   bookings            Booking[]
 
   @@index([isActive, categoryId])
