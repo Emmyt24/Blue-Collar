@@ -460,6 +460,17 @@ model ProfileView {
   @@index([workerId, ip, viewedAt])
 }
 
+model WorkerTipEvent {
+  id        String   @id @default(cuid())
+  workerId  String
+  amount    Float
+  txHash    String?
+  createdAt DateTime @default(now())
+  worker    Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([workerId, createdAt])
+}
+
 model WorkerAnalytics {
   id            String   @id @default(cuid())
   workerId      String   @unique
