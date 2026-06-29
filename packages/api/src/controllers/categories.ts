@@ -7,9 +7,6 @@ import { ErrorMessages, HttpStatus } from '../constants/index.js'
 /**
  * GET /api/categories
  * List all available worker categories.
- *
- * @param _req - Unused.
- * @param res - JSON `{ data: Category[], status, code: 200 }`.
  */
 export async function listCategories(_req: Request, res: Response) {
   try {
@@ -23,9 +20,6 @@ export async function listCategories(_req: Request, res: Response) {
 /**
  * GET /api/categories/:id
  * Get a single category by id.
- *
- * @param req - Route param `id`.
- * @param res - JSON `{ data: Category, status, code: 200 }` or 404.
  */
 export async function getCategory(req: Request, res: Response) {
   try {
@@ -34,6 +28,42 @@ export async function getCategory(req: Request, res: Response) {
       return res.status(HttpStatus.NOT_FOUND).json({ status: 'error', message: ErrorMessages.CATEGORY_NOT_FOUND, code: HttpStatus.NOT_FOUND })
     }
     return res.json({ data: CategoryResource(category as any), status: 'success', code: 200 })
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
+
+/**
+ * POST /api/categories — admin only.
+ */
+export async function createCategory(req: Request, res: Response) {
+  try {
+    const category = await categoryService.createCategory(req.body)
+    return res.status(201).json({ data: CategoryResource(category as any), status: 'success', code: 201 })
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
+
+/**
+ * PUT /api/categories/:id — admin only.
+ */
+export async function updateCategory(req: Request, res: Response) {
+  try {
+    const category = await categoryService.updateCategory(req.params.id as string, req.body)
+    return res.json({ data: CategoryResource(category as any), status: 'success', code: 200 })
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
+
+/**
+ * DELETE /api/categories/:id — admin only.
+ */
+export async function deleteCategory(req: Request, res: Response) {
+  try {
+    await categoryService.deleteCategory(req.params.id as string)
+    return res.status(204).send()
   } catch (err) {
     return handleError(res, err)
   }
