@@ -1,7 +1,165 @@
 import { describe, it, expect } from 'vitest'
+import {
+  registerRules,
+  loginRules,
+  forgotPasswordRules,
+  resetPasswordRules,
+  verifyAccountRules,
+  resendVerificationRules,
+} from '../validations/auth.js'
+import { createWorkerRules, updateWorkerRules, createReviewRules, advancedSearchRules } from '../validations/worker.js'
 import { updateProfileRules, changePasswordRules, pushSubscriptionRules } from '../validations/user.js'
 import { bulkDeleteRules, bulkToggleRules } from '../validations/admin.js'
 import { tipRules, createEscrowRules, updateFeeRules } from '../validations/payment.js'
+import { revokeOtherDevicesRules } from '../validations/device.js'
+
+// ── Auth validators ───────────────────────────────────────────────────────────
+
+describe('registerRules', () => {
+  const valid = { email: 'test@example.com', password: 'password123', firstName: 'Jane', lastName: 'Doe' }
+
+  it('accepts valid registration', () => {
+    expect(registerRules.safeParse(valid).success).toBe(true)
+  })
+
+  it('rejects invalid email', () => {
+    expect(registerRules.safeParse({ ...valid, email: 'not-email' }).success).toBe(false)
+  })
+
+  it('rejects short password', () => {
+    expect(registerRules.safeParse({ ...valid, password: 'short' }).success).toBe(false)
+  })
+
+  it('rejects empty firstName', () => {
+    expect(registerRules.safeParse({ ...valid, firstName: '' }).success).toBe(false)
+  })
+})
+
+describe('loginRules', () => {
+  it('accepts valid login', () => {
+    expect(loginRules.safeParse({ email: 'test@example.com', password: 'anypass' }).success).toBe(true)
+  })
+
+  it('rejects invalid email', () => {
+    expect(loginRules.safeParse({ email: 'bad', password: 'pass' }).success).toBe(false)
+  })
+
+  it('rejects empty password', () => {
+    expect(loginRules.safeParse({ email: 'test@example.com', password: '' }).success).toBe(false)
+  })
+})
+
+describe('forgotPasswordRules', () => {
+  it('accepts valid email', () => {
+    expect(forgotPasswordRules.safeParse({ email: 'test@example.com' }).success).toBe(true)
+  })
+
+  it('rejects invalid email', () => {
+    expect(forgotPasswordRules.safeParse({ email: 'bad' }).success).toBe(false)
+  })
+})
+
+describe('resetPasswordRules', () => {
+  it('accepts valid token and password', () => {
+    expect(resetPasswordRules.safeParse({ token: 'abc123', password: 'newpass123' }).success).toBe(true)
+  })
+
+  it('rejects missing token', () => {
+    expect(resetPasswordRules.safeParse({ password: 'newpass123' }).success).toBe(false)
+  })
+
+  it('rejects short password', () => {
+    expect(resetPasswordRules.safeParse({ token: 'abc', password: 'short' }).success).toBe(false)
+  })
+})
+
+describe('verifyAccountRules', () => {
+  it('accepts valid token', () => {
+    expect(verifyAccountRules.safeParse({ token: 'valid-token' }).success).toBe(true)
+  })
+
+  it('rejects empty token', () => {
+    expect(verifyAccountRules.safeParse({ token: '' }).success).toBe(false)
+  })
+})
+
+describe('resendVerificationRules', () => {
+  it('accepts valid email', () => {
+    expect(resendVerificationRules.safeParse({ email: 'test@example.com' }).success).toBe(true)
+  })
+
+  it('rejects invalid email', () => {
+    expect(resendVerificationRules.safeParse({ email: 'bad' }).success).toBe(false)
+  })
+})
+
+// ── Worker validators ─────────────────────────────────────────────────────────
+
+describe('createWorkerRules', () => {
+  const valid = { name: 'John Smith', categoryId: 'cat-1', phone: '+1234567890' }
+
+  it('accepts valid worker with phone', () => {
+    expect(createWorkerRules.safeParse(valid).success).toBe(true)
+  })
+
+  it('accepts valid worker with email instead of phone', () => {
+    expect(createWorkerRules.safeParse({ name: 'Jane', categoryId: 'cat-1', email: 'jane@example.com' }).success).toBe(true)
+  })
+
+  it('rejects empty name', () => {
+    expect(createWorkerRules.safeParse({ ...valid, name: '' }).success).toBe(false)
+  })
+
+  it('rejects missing categoryId', () => {
+    expect(createWorkerRules.safeParse({ name: 'John', phone: '+1234' }).success).toBe(false)
+  })
+})
+
+describe('updateWorkerRules', () => {
+  it('accepts partial update', () => {
+    expect(updateWorkerRules.safeParse({ name: 'Updated' }).success).toBe(true)
+  })
+
+  it('accepts empty object (all optional)', () => {
+    expect(updateWorkerRules.safeParse({}).success).toBe(true)
+  })
+})
+
+describe('createReviewRules', () => {
+  it('accepts valid review', () => {
+    expect(createReviewRules.safeParse({ rating: 4, comment: 'Great work' }).success).toBe(true)
+  })
+
+  it('rejects rating below 1', () => {
+    expect(createReviewRules.safeParse({ rating: 0 }).success).toBe(false)
+  })
+
+  it('rejects rating above 5', () => {
+    expect(createReviewRules.safeParse({ rating: 6 }).success).toBe(false)
+  })
+
+  it('rejects non-integer rating', () => {
+    expect(createReviewRules.safeParse({ rating: 3.5 }).success).toBe(false)
+  })
+})
+
+describe('advancedSearchRules', () => {
+  it('accepts valid search params', () => {
+    expect(advancedSearchRules.safeParse({ lat: 40.7128, lng: -74.006, radius: 10 }).success).toBe(true)
+  })
+
+  it('accepts empty object (all optional)', () => {
+    expect(advancedSearchRules.safeParse({}).success).toBe(true)
+  })
+
+  it('rejects invalid sortBy value', () => {
+    expect(advancedSearchRules.safeParse({ sortBy: 'invalid' }).success).toBe(false)
+  })
+
+  it('rejects radius below 0.1', () => {
+    expect(advancedSearchRules.safeParse({ radius: 0 }).success).toBe(false)
+  })
+})
 
 // ── User validators ───────────────────────────────────────────────────────────
 
@@ -140,5 +298,21 @@ describe('updateFeeRules', () => {
 
   it('rejects non-integer fee_bps', () => {
     expect(updateFeeRules.safeParse({ fee_bps: 1.5 }).success).toBe(false)
+  })
+})
+
+// ── Device validators ─────────────────────────────────────────────────────────
+
+describe('revokeOtherDevicesRules', () => {
+  it('accepts valid deviceId', () => {
+    expect(revokeOtherDevicesRules.safeParse({ currentDeviceId: 'device-123' }).success).toBe(true)
+  })
+
+  it('rejects empty deviceId', () => {
+    expect(revokeOtherDevicesRules.safeParse({ currentDeviceId: '' }).success).toBe(false)
+  })
+
+  it('rejects missing deviceId', () => {
+    expect(revokeOtherDevicesRules.safeParse({}).success).toBe(false)
   })
 })
