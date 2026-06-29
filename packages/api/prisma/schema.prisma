@@ -153,7 +153,6 @@ model Worker {
   jobApplications     JobApplication[]
   profileViews        ProfileView[]
   analytics           WorkerAnalytics?
-  tipEvents           WorkerTipEvent[]
   bookings            Booking[]
 
   @@index([isActive, categoryId])
