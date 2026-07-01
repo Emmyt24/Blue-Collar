@@ -25,3 +25,39 @@ export async function getCategory(req: Request, res: Response) {
     return handleError(res, err)
   }
 }
+
+/**
+ * POST /api/categories — admin only.
+ */
+export async function createCategory(req: Request, res: Response) {
+  try {
+    const category = await categoryService.createCategory(req.body)
+    return res.status(201).json({ data: CategoryResource(category as any), status: 'success', code: 201 })
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
+
+/**
+ * PUT /api/categories/:id — admin only.
+ */
+export async function updateCategory(req: Request, res: Response) {
+  try {
+    const category = await categoryService.updateCategory(req.params.id as string, req.body)
+    return res.json({ data: CategoryResource(category as any), status: 'success', code: 200 })
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
+
+/**
+ * DELETE /api/categories/:id — admin only.
+ */
+export async function deleteCategory(req: Request, res: Response) {
+  try {
+    await categoryService.deleteCategory(req.params.id as string)
+    return res.status(204).send()
+  } catch (err) {
+    return handleError(res, err)
+  }
+}
